@@ -1,0 +1,3275 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>PC Controller</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Tajawal:wght@400;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+:root{--bg:#0b0c0f;--surface:#13151a;--border:#1e2028;--accent:#00d4ff;--accent2:#ff3d6b;--text:#e8eaf0;--muted:#4a4f5e;--green:#00ff88;--r:12px;}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+body{font-family:'Tajawal',sans-serif;background:var(--bg);color:var(--text);height:100dvh;display:flex;flex-direction:column;overflow:hidden;user-select:none;}
+
+/* PIN */
+#pin-screen{position:fixed;inset:0;background:var(--bg);z-index:1000;display:none;flex-direction:column;align-items:center;justify-content:center;gap:20px;}
+#pin-screen.show{display:flex;}
+.pin-dots{display:flex;gap:12px;}
+.pin-dot{width:16px;height:16px;border-radius:50%;background:var(--border);border:2px solid var(--muted);transition:all .2s;}
+.pin-dot.filled{background:var(--accent);border-color:var(--accent);}
+.pin-grid{display:grid;grid-template-columns:repeat(3,72px);gap:10px;}
+.pin-btn{height:72px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);color:var(--text);font-size:22px;font-family:'JetBrains Mono',monospace;cursor:pointer;transition:all .15s;}
+.pin-btn:active{background:var(--accent)22;border-color:var(--accent);}
+.pin-error{color:var(--accent2);font-size:13px;min-height:18px;}
+
+/* Sleep */
+#sleep-overlay{display:none;position:fixed;inset:0;background:#000;z-index:500;flex-direction:column;align-items:center;justify-content:center;gap:12px;}
+#sleep-overlay.show{display:flex;}
+.sleep-bar{height:2px;background:var(--border);flex-shrink:0;}
+.sleep-fill{height:100%;background:var(--accent);transition:width 1s linear;}
+
+/* Header */
+header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+.logo{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);}
+.header-right{display:flex;align-items:center;gap:6px;}
+.profile-badge{font-size:10px;padding:3px 8px;border-radius:10px;background:var(--accent)22;color:var(--accent);border:1px solid var(--accent)44;font-family:'JetBrains Mono',monospace;cursor:pointer;}
+.latency-badge{font-size:10px;padding:3px 7px;border-radius:10px;background:var(--bg);color:var(--green);border:1px solid var(--green)33;font-family:'JetBrains Mono',monospace;}
+.latency-badge.warn{color:var(--accent);border-color:var(--accent)33;}
+.latency-badge.bad{color:var(--accent2);border-color:var(--accent2)33;}
+.status-pill{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);background:var(--bg);padding:3px 8px;border-radius:20px;border:1px solid var(--border);}
+.status-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--muted);}
+.status-pill.on .dot{background:var(--green);box-shadow:0 0 5px var(--green);}
+.status-pill.on{color:var(--green);border-color:var(--green)33;}
+
+/* Tabs */
+.tabs{display:flex;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;overflow-x:auto;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{flex:0 0 auto;padding:8px 10px;text-align:center;font-size:10px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.tab-icon{font-size:14px;display:block;margin-bottom:1px;}
+.panel{display:none;flex:1;flex-direction:column;overflow:hidden;min-height:0;}
+.panel.active{display:flex;}
+
+/* Touchpad */
+.tp-wrap{flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;}
+.touchpad{flex:1;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--r);position:relative;overflow:hidden;touch-action:none;min-height:120px;}
+.touchpad::before{content:'';position:absolute;inset:0;background:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:28px 28px;opacity:.35;}
+.tp-hint{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--muted);font-size:12px;pointer-events:none;}
+.ripple{position:absolute;border-radius:50%;background:var(--accent);opacity:.4;transform:scale(0);pointer-events:none;animation:rip .4s ease-out forwards;}
+@keyframes rip{to{transform:scale(3);opacity:0;}}
+.rec-indicator{position:absolute;top:8px;left:8px;background:var(--accent2);color:#fff;font-size:9px;padding:2px 7px;border-radius:8px;font-family:'JetBrains Mono',monospace;animation:pulse .8s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+
+/* Gyro */
+.gyro-bar{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;display:none;gap:10px;align-items:center;}
+.gyro-bar.show{display:flex;}
+.gyro-axis{flex:1;}
+.gyro-axis-label{font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.gyro-track{height:3px;background:var(--bg);border-radius:2px;overflow:hidden;margin-top:2px;}
+.gyro-fill{height:100%;background:var(--accent);border-radius:2px;width:50%;transition:width .05s;}
+.gyro-fill.y{background:var(--accent2);}
+.gyro-row{display:flex;gap:6px;flex-shrink:0;}
+.gyro-toggle-btn{flex:1;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .2s;font-family:'JetBrains Mono',monospace;}
+.gyro-toggle-btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent)11;}
+.calib-btn{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:11px;cursor:pointer;}
+.ai-btn{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .2s;}
+.ai-btn.on{border-color:var(--accent);color:var(--accent);background:var(--accent)11;}
+.ai-info{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+
+/* Clicks */
+.click-row{display:flex;gap:6px;flex-shrink:0;}
+.click-btn{flex:1;padding:12px 6px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:17px;cursor:pointer;text-align:center;transition:all .15s;}
+.click-btn:active,.click-btn.pressed{background:var(--accent)22;border-color:var(--accent);transform:scale(.95);}
+.click-btn .lbl{font-size:9px;color:var(--muted);display:block;margin-top:2px;font-family:'JetBrains Mono',monospace;}
+.scroll-col{display:flex;flex-direction:column;gap:4px;}
+.scroll-btn{flex:1;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;cursor:pointer;text-align:center;transition:all .15s;}
+.scroll-btn:active{background:var(--accent)22;border-color:var(--accent);}
+
+/* Shortcuts */
+.shortcuts-wrap{flex:1;padding:8px;overflow-y:auto;display:flex;flex-direction:column;gap:6px;}
+.section-title{font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;padding:3px 2px;}
+.shortcut-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.sc-btn{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 8px;cursor:pointer;transition:all .15s;text-align:center;}
+.sc-btn:active{background:var(--accent)22;border-color:var(--accent);transform:scale(.97);}
+.sc-icon{font-size:18px;}
+.sc-label{font-size:10px;color:var(--muted);margin-top:3px;}
+.sc-key{font-size:9px;color:var(--accent);font-family:'JetBrains Mono',monospace;margin-top:1px;}
+
+/* Presentation */
+.pres-wrap{flex:1;padding:10px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto 1fr 1fr auto;gap:6px;}
+.pres-btn{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;transition:all .15s;padding:8px;}
+.pres-btn:active{transform:scale(.95);}
+.pres-btn .pi{font-size:24px;}
+.pres-btn .pl{font-size:10px;color:var(--muted);}
+.pres-btn.wide{grid-column:span 2;}
+.pres-btn.start{border-color:var(--green)66;background:var(--green)0a;}
+.pres-btn.end{border-color:var(--accent2)66;background:var(--accent2)0a;}
+.pres-btn.next{border-color:var(--accent)44;}
+
+/* Gaming */
+.gc-layout{flex:1;display:flex;overflow:hidden;}
+.gc-sidebar{width:72px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;gap:4px;padding:6px 4px;overflow-y:auto;flex-shrink:0;}
+.gc-sidebar-title{font-size:8px;color:var(--muted);text-align:center;font-family:'JetBrains Mono',monospace;letter-spacing:.5px;padding-bottom:4px;border-bottom:1px solid var(--border);}
+.gc-profile-item{padding:6px 4px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:9px;color:var(--muted);text-align:center;cursor:pointer;word-break:break-all;transition:all .15s;}
+.gc-profile-item.active{border-color:var(--accent);color:var(--accent);background:var(--accent)11;}
+.gc-add-profile-btn{padding:5px;background:var(--accent)11;border:1px solid var(--accent)44;border-radius:6px;color:var(--accent);font-size:10px;cursor:pointer;margin-top:auto;}
+.gc-main{flex:1;display:flex;flex-direction:column;overflow:hidden;padding:6px;}
+.gc-type-row{display:flex;gap:4px;flex-shrink:0;margin-bottom:6px;align-items:center;}
+.gc-type-btn{padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;cursor:pointer;font-family:'JetBrains Mono',monospace;transition:all .15s;}
+.gc-type-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent)11;}
+.g-stats{display:flex;gap:6px;padding:6px 8px;flex-shrink:0;}
+.g-stat{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px;text-align:center;}
+.g-stat-val{font-size:16px;font-weight:700;color:var(--accent);font-family:'JetBrains Mono',monospace;}
+.g-stat-val.hot{color:var(--accent2);}
+.g-stat-label{font-size:9px;color:var(--muted);margin-top:2px;}
+.g-tool-btn{flex:1;padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:11px;cursor:pointer;transition:all .2s;}
+.g-tool-btn.active{border-color:var(--accent);color:var(--accent);}
+
+
+/* Screen */
+.screen-wrap{flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;overflow:hidden;}
+.screen-hint{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;}
+.screen-img{width:100%;border-radius:8px;display:none;max-height:48vh;flex-shrink:0;}
+.screen-btn{padding:8px 14px;background:var(--accent)11;border:1px solid var(--accent);border-radius:8px;color:var(--accent);font-size:12px;cursor:pointer;}
+.screen-btn.stop{background:var(--accent2)11;border-color:var(--accent2);color:var(--accent2);}
+.screen-controls{display:flex;gap:6px;flex-shrink:0;align-items:center;}
+.scr-stat{margin-right:auto;font-size:10px;color:var(--green);font-family:'JetBrains Mono',monospace;background:var(--bg);padding:3px 8px;border-radius:8px;border:1px solid var(--green)33;}
+.scr-settings{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;display:flex;flex-direction:column;gap:6px;flex-shrink:0;}
+.scr-set-row{display:flex;align-items:center;gap:8px;font-size:11px;}
+.scr-set-row label{width:80px;flex-shrink:0;color:var(--muted);}
+.scr-set-row input[type=range]{flex:1;}
+.scr-sel{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:11px;flex:1;}
+.screen-tp{flex:1;min-height:80px;background:var(--surface);border:1px solid var(--border);border-radius:8px;touch-action:none;position:relative;}
+.screen-tp::after{content:'touchpad — حرك الماوس هنا';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;font-family:'JetBrains Mono',monospace;pointer-events:none;}
+.scr-type-wrap{display:flex;gap:4px;flex-shrink:0;}
+.scr-kb-row{display:flex;gap:5px;flex-shrink:0;}
+.scr-kb-btn{flex:1;padding:8px 4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:10px;cursor:pointer;text-align:center;transition:all .15s;}
+.scr-kb-btn:active{background:var(--accent)22;border-color:var(--accent);}
+
+/* Settings */
+.settings-wrap{flex:1;padding:15px;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:8px;padding-bottom:80px;}
+.settings-wrap > *{flex-shrink:0;}
+.setting-group{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.sg-title{font-size:9px;color:var(--muted);letter-spacing:1px;padding:8px 12px 4px;font-family:'JetBrains Mono',monospace;}
+.setting-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--border);}
+.setting-row label{flex:1;font-size:12px;}
+.sv{font-size:11px;color:var(--accent);font-family:'JetBrains Mono',monospace;min-width:28px;text-align:left;}
+input[type=range]{flex:1;min-width:0;accent-color:var(--accent);height:3px;-webkit-appearance:none;background:var(--border);border-radius:2px;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;}
+.toggle{width:40px;height:22px;border-radius:11px;background:var(--border);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
+.toggle.on{background:var(--accent);}
+.toggle::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .2s;}
+.toggle.on::after{left:21px;}
+.action-btn{padding:7px 12px;background:var(--accent)11;border:1px solid var(--accent)44;border-radius:8px;color:var(--accent);font-size:11px;cursor:pointer;font-family:'JetBrains Mono',monospace;}
+.action-btn.red{background:var(--accent2)11;border-color:var(--accent2)44;color:var(--accent2);}
+
+/* OSK */
+.osk-overlay{display:none;position:fixed;inset:0;z-index:800;background:#0006;}
+.osk-overlay.show{display:block;}
+.osk-panel{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);border-radius:16px 16px 0 0;padding:8px;z-index:801;touch-action:manipulation;}
+.osk-panel.show{display:block;}
+.osk-header{display:flex;justify-content:space-between;align-items:center;padding:4px 8px 8px;}
+.osk-header span{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+.osk-close{padding:4px 10px;background:var(--accent2)11;border:1px solid var(--accent2)44;border-radius:6px;color:var(--accent2);font-size:11px;cursor:pointer;}
+.osk-input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:14px;margin-bottom:8px;outline:none;}
+.osk-input:focus{border-color:var(--accent);}
+.osk-rows{display:flex;flex-direction:column;gap:4px;}
+.osk-row{display:flex;gap:3px;justify-content:center;}
+.osk-key{flex:1;max-width:36px;height:36px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .1s;font-family:'JetBrains Mono',monospace;}
+.osk-key:active{background:var(--accent)22;border-color:var(--accent);transform:scale(.93);}
+.osk-key.wide{flex:2;max-width:80px;}
+.osk-key.xwide{flex:4;max-width:160px;}
+.osk-key.special{color:var(--accent);font-size:10px;}
+.osk-lang-btn{padding:5px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;cursor:pointer;}
+.hidden-input{position:fixed;bottom:0;left:0;width:100%;height:2px;opacity:0;font-size:16px;border:none;outline:none;background:transparent;color:transparent;caret-color:transparent;}
+
+/* Toast */
+.toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface);border:1px solid var(--accent)55;color:var(--accent);padding:6px 16px;border-radius:20px;font-size:11px;font-family:'JetBrains Mono',monospace;opacity:0;transition:all .3s;pointer-events:none;white-space:nowrap;z-index:999;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* Shared Feature Panels */
+.feat-wrap{flex:1;padding:10px;display:flex;flex-direction:column;gap:8px;overflow:hidden;min-height:0;}
+.feat-section-title{font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;padding:2px 0;flex-shrink:0;}
+.feat-refresh-btn{background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;padding:0 4px;}
+.feat-progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;flex-shrink:0;}
+.feat-progress-fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .2s;}
+
+/* Explorer */
+.exp-breadcrumb{display:flex;align-items:center;gap:2px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px;overflow-x:auto;white-space:nowrap;}
+.exp-breadcrumb::-webkit-scrollbar{display:none;}
+.exp-bc-item{font-size:11px;color:var(--accent);cursor:pointer;font-family:'JetBrains Mono',monospace;}
+.exp-bc-item:not(:last-child)::after{content:' ›';color:var(--muted);margin:0 2px;}
+.exp-bc-root{color:var(--text);}
+.exp-bc-item:last-child{color:var(--muted);cursor:default;}
+.exp-toolbar{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.exp-tool-btn{padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:11px;cursor:pointer;white-space:nowrap;}
+.exp-tool-btn:disabled{opacity:.4;cursor:default;}
+.exp-tool-btn.accent{background:var(--accent)11;border-color:var(--accent)44;color:var(--accent);}
+.exp-sel-count{font-size:10px;color:var(--accent);font-family:'JetBrains Mono',monospace;}
+.exp-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;min-height:0;}
+.exp-loading{color:var(--muted);font-size:12px;text-align:center;padding:20px;}
+.exp-item{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:8px;cursor:pointer;transition:background .15s;user-select:none;}
+.exp-item:active{background:var(--surface);}
+.exp-item.selected{background:var(--accent)22;border:1.5px solid var(--accent);color:var(--accent);}
+.exp-item.selected .exp-item-name{color:var(--accent);}
+.exp-item.cut{opacity:.45;}
+.exp-item-icon{font-size:18px;flex-shrink:0;width:24px;text-align:center;}
+.exp-item-name{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.exp-item-meta{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;flex-shrink:0;}
+.exp-drives{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:4px 0;}
+.exp-drive{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 8px;cursor:pointer;transition:all .15s;}
+.exp-drive:active{border-color:var(--accent);background:var(--accent)11;}
+.exp-drive-letter{font-size:22px;font-family:'JetBrains Mono',monospace;color:var(--accent);}
+.exp-drive-label{font-size:10px;color:var(--muted);}
+
+/* Clipboard (CSS only, no panel) */
+.clip-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;min-height:60px;max-height:120px;overflow-y:auto;word-break:break-all;flex-shrink:0;}
+.clip-input{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:12px;min-height:80px;resize:none;outline:none;font-family:'Tajawal',sans-serif;flex-shrink:0;}
+
+/* Macros */
+.macro-item{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;flex-shrink:0;}
+.macro-item-name{flex:1;font-size:12px;}
+.feat-macro-add{padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:10px;cursor:pointer;white-space:nowrap;}
+
+/* Gaming Full Mode */
+#exit-gaming{display:none;position:fixed;top:10px;left:50%;transform:translateX(-50%);z-index:10000;opacity:.5;}
+#fs-toggle{display:none;}
+
+body.gaming-mode header,body.gaming-mode .tabs,body.gaming-mode .sleep-bar,body.gaming-mode .gc-sidebar,body.gaming-mode .gc-type-row{display:none !important;}
+body.gaming-mode .panel{display:none;}
+body.gaming-mode #panel-gaming{display:flex !important;position:fixed;inset:0;z-index:9999;background:var(--bg);}
+body.gaming-mode .gc-layout{flex-direction:column !important;justify-content:flex-start !important;align-items:stretch !important;padding:10px !important;height:100vh;overflow-y:auto;}
+body.gaming-mode #exit-gaming{display:block;}
+
+.exp-ctx-menu{position:fixed;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:4px;z-index:9000;min-width:160px;box-shadow:0 8px 32px #0008;display:none;}
+.exp-ctx-menu.show{display:block;}
+.exp-ctx-item{padding:9px 14px;font-size:12px;cursor:pointer;border-radius:7px;display:flex;align-items:center;gap:8px;transition:background .1s;}
+.exp-ctx-item:active,.exp-ctx-item:hover{background:var(--accent)22;}
+.exp-ctx-item.red{color:var(--accent2);}
+.exp-ctx-sep{height:1px;background:var(--border);margin:3px 0;}
+.exp-sort-row{display:flex;gap:4px;flex-shrink:0;}
+.exp-sort-btn{flex:1;padding:5px 4px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:10px;cursor:pointer;text-align:center;}
+.exp-sort-btn.active{border-color:var(--accent);color:var(--accent);}
+.exp-dl-progress{display:none;flex-direction:column;gap:2px;flex-shrink:0;}
+.exp-dl-progress.show{display:flex;}
+
+/* Mic vol bar (used in Settings) */
+.mic-vol-bar{width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden;}
+.mic-vol-fill{height:100%;background:var(--accent2);width:0%;transition:width .05s;border-radius:3px;}
+/* Connection Alert */
+#conn-alert{position:fixed;top:0;left:0;right:0;z-index:2000;padding:10px 16px;font-size:12px;font-family:'JetBrains Mono',monospace;text-align:center;display:none;transition:all .3s;}
+#conn-alert.lost{display:block;background:#ff3d6b;color:#fff;}
+#conn-alert.back{display:block;background:#00ff88;color:#000;}
+
+/* Theme */
+body.light-theme{--bg:#f0f2f5;--surface:#fff;--border:#dde1ea;--text:#1a1d27;--muted:#8b91a3;--green:#00a854;}
+body.light-theme .touchpad::before{opacity:.15;}
+
+/* Task Manager */
+.task-wrap{flex:1;display:flex;flex-direction:column;gap:6px;overflow:hidden;}
+.task-toolbar{display:flex;gap:6px;flex-shrink:0;align-items:center;}
+.task-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;}
+.task-item{display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;flex-shrink:0;}
+.task-name{flex:1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.task-cpu{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--accent);width:42px;text-align:right;flex-shrink:0;}
+.task-mem{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--muted);width:50px;text-align:right;flex-shrink:0;}
+.task-kill{padding:3px 7px;background:var(--accent2)11;border:1px solid var(--accent2)44;border-radius:5px;color:var(--accent2);font-size:10px;cursor:pointer;flex-shrink:0;}
+.task-cpu.hot{color:var(--accent2);}
+.task-header{display:flex;gap:6px;padding:3px 10px;flex-shrink:0;}
+.task-header span{font-size:9px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+
+/* Log */
+.log-wrap{flex:1;display:flex;flex-direction:column;gap:6px;overflow:hidden;}
+.log-list{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:2px;font-family:'JetBrains Mono',monospace;font-size:10px;}
+.log-item{padding:5px 8px;background:var(--surface);border-radius:6px;display:flex;gap:8px;border-left:2px solid var(--border);}
+.log-item.pin_fail{border-left-color:var(--accent2);}
+.log-item.connect{border-left-color:var(--green);}
+.log-item.task_kill{border-left-color:#ffaa00;}
+.log-time{color:var(--muted);flex-shrink:0;}
+.log-type{color:var(--accent);flex-shrink:0;width:80px;}
+.log-detail{color:var(--text);flex:1;}
+
+/* Audio */
+.audio-wave{display:flex;align-items:center;gap:2px;height:24px;}
+.audio-bar{width:3px;background:var(--accent);border-radius:2px;animation:wave .8s ease-in-out infinite;}
+.audio-bar:nth-child(2){animation-delay:.1s;}
+.audio-bar:nth-child(3){animation-delay:.2s;}
+.audio-bar:nth-child(4){animation-delay:.3s;}
+.audio-bar:nth-child(5){animation-delay:.4s;}
+@keyframes wave{0%,100%{height:4px;}50%{height:18px;}}
+
+/* Mouse Select Mode */
+.select-mode-badge{position:absolute;top:6px;right:6px;background:var(--accent)22;color:var(--accent);font-size:9px;padding:2px 6px;border-radius:6px;font-family:'JetBrains Mono',monospace;}
+
+/* Scheduled Tasks */
+.sched-item{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;flex-shrink:0;}
+.sched-time{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent);width:48px;flex-shrink:0;}
+.sched-name{flex:1;font-size:11px;}
+.sched-macro{font-size:10px;color:var(--muted);}
+/* gc-main-grid: play canvas = editor canvas */
+.gc-main-grid{position:relative;width:100%;flex:1;min-height:160px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;}
+.gc-placed-btn{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--accent)22;border:2px solid var(--accent)66;border-radius:10px;cursor:pointer;touch-action:none;user-select:none;font-weight:700;transform:translate(-50%,-50%);transition:background .1s;}
+.gc-placed-btn:active,.gc-placed-btn.pressed{background:var(--accent)44;transform:translate(-50%,-50%) scale(.92);}
+.gc-placed-icon{line-height:1;}
+.gc-placed-key{font-size:8px;color:var(--accent);font-family:'JetBrains Mono',monospace;margin-top:1px;}
+
+/* Controller Editor */
+#ctrl-editor{position:fixed;inset:0;background:var(--bg);z-index:9999;display:none;flex-direction:column;}
+#ctrl-editor.show{display:flex;}
+#ctrl-editor-header{display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+#ctrl-editor-title{font-size:12px;font-family:'JetBrains Mono',monospace;color:var(--accent);flex-shrink:0;}
+.ctrl-editor-btn{padding:7px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--muted);font-size:11px;cursor:pointer;}
+.ctrl-editor-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent)11;}
+.ctrl-editor-btn.save{border-color:var(--green);color:var(--green);background:var(--green)11;}
+.ctrl-editor-btn.cancel{border-color:var(--accent2);color:var(--accent2);}
+#ctrl-editor-body{flex:1;display:flex;flex-direction:column;overflow:hidden;min-height:0;}
+#ctrl-palette{background:var(--surface);border-bottom:1px solid var(--border);padding:6px 8px;flex-shrink:0;overflow-x:scroll;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x;scroll-snap-type:x proximity;}
+#ctrl-palette::-webkit-scrollbar{display:none;}
+.palette-title{font-size:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;letter-spacing:1px;padding-bottom:4px;}
+#ctrl-palette-btns{display:flex;flex-direction:row;gap:6px;width:max-content;}
+.palette-btn{background:var(--accent)22;border:1.5px solid var(--accent)44;border-radius:8px;padding:6px 10px;text-align:center;cursor:grab;font-size:13px;font-weight:700;color:var(--text);user-select:none;touch-action:none;flex-shrink:0;min-width:44px;}
+.palette-btn:active{background:var(--accent)44;}
+#ctrl-canvas-wrap{flex:1;display:flex;align-items:stretch;justify-content:stretch;background:var(--bg);padding:10px;overflow:auto;}
+#ctrl-editor-canvas{position:relative;width:100%;height:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;
+  background-image:linear-gradient(var(--border)33 1px,transparent 1px),linear-gradient(90deg,var(--border)33 1px,transparent 1px);
+  background-size:10% 10%;}
+.editor-placed{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--accent)22;border:2px solid var(--accent)66;border-radius:10px;font-weight:700;color:var(--text);touch-action:none;user-select:none;cursor:move;transform:translate(-50%,-50%);}
+.editor-placed .e-del{position:absolute;top:-10px;right:-10px;width:22px;height:22px;background:var(--accent2);color:#fff;border-radius:50%;font-size:12px;display:none;align-items:center;justify-content:center;cursor:pointer;line-height:1;z-index:2;}
+.editor-placed.selected .e-del{display:flex;}
+.editor-placed .e-key{font-size:8px;color:var(--accent);font-family:'JetBrains Mono',monospace;margin-top:2px;}
+.editor-placed .e-resize{position:absolute;bottom:-8px;right:-8px;width:18px;height:18px;background:var(--accent);border-radius:3px;cursor:se-resize;touch-action:none;z-index:2;display:none;}
+.editor-placed.selected .e-resize{display:block;}
+.editor-placed.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)44;}
+.editor-ghost{position:fixed;pointer-events:none;z-index:99999;background:var(--accent)44;border:2px dashed var(--accent);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--text);transform:translate(-50%,-50%);}
+
+/* Key Picker */
+#key-picker-overlay{position:fixed;inset:0;background:#0008;z-index:10001;display:none;}
+#key-picker-overlay.show{display:block;}
+#key-picker-modal{position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);border-radius:16px 16px 0 0;z-index:10002;padding:14px;max-height:65vh;overflow-y:auto;display:none;}
+#key-picker-modal.show{display:block;}
+#key-picker-cats{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px;}
+.kp-cat{padding:5px 10px;background:var(--bg);border:1px solid var(--border);border-radius:20px;font-size:11px;cursor:pointer;color:var(--muted);}
+.kp-cat.active{border-color:var(--accent);color:var(--accent);background:var(--accent)11;}
+#key-picker-keys{display:flex;flex-wrap:wrap;gap:6px;}
+.kp-key{padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:8px;font-size:11px;font-family:'JetBrains Mono',monospace;cursor:pointer;color:var(--text);min-width:44px;text-align:center;}
+.kp-key:active{background:var(--accent)22;border-color:var(--accent);}
+body.gaming-mode .gc-main-grid{overflow:visible;}
+.kb-float{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:2px solid var(--accent);padding:8px;z-index:900;gap:8px;align-items:center;}
+.kb-float.show{display:flex;}
+.kb-float input{flex:1;background:var(--bg);color:var(--text);border:1px solid var(--accent)44;border-radius:8px;padding:10px 12px;font-size:16px;outline:none;font-family:inherit;}
+.kb-float-close{padding:8px 12px;background:var(--accent2)11;border:1px solid var(--accent2)44;border-radius:8px;color:var(--accent2);font-size:12px;cursor:pointer;}
+#pcc-debug-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:40vh;background:var(--bg);border-top:2px solid var(--accent);z-index:9999;flex-direction:column;}
+#pcc-debug-panel.show{display:flex;}
+.pcc-debug-header{display:flex;align-items:center;padding:4px 8px;background:var(--surface);flex-shrink:0;}
+#pcc-debug-list{flex:1;overflow-y:auto;padding:4px;}
+
+.gc-wheel{position:absolute;cursor:pointer;touch-action:none;user-select:none;transform:translate(-50%,-50%);}
+.editor-placed.wheel-item{border-radius:50%;}
+.editor-placed.wheel-item .e-resize{bottom:-4px;right:-4px;}
+
+.os-toggle-row{display:flex;gap:6px;flex-shrink:0;padding:2px 0 4px;}
+.os-toggle-btn{flex:1;padding:6px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:11px;cursor:pointer;text-align:center;font-family:'JetBrains Mono',monospace;transition:all .15s;}
+.os-toggle-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent)11;}
+</style>
+</head>
+<body>
+
+<div id="conn-alert"></div>
+<button id="exit-gaming" class="action-btn red" onclick="toggleGamingMode()" data-i18n="exit_gaming">خروج من وضع اللعب ✖</button>
+
+<!-- PIN -->
+<div id="pin-screen">
+  <div style="color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:18px;">🔐 PC Controller</div>
+  <div style="font-size:11px;color:var(--muted);margin-top:-10px" data-i18n="pin_prompt">أدخل PIN للدخول</div>
+  <div class="pin-dots"><div class="pin-dot" id="pd0"></div><div class="pin-dot" id="pd1"></div><div class="pin-dot" id="pd2"></div><div class="pin-dot" id="pd3"></div></div>
+  <div class="pin-error" id="pin-error"></div>
+  <div class="pin-grid">
+    <button class="pin-btn" onclick="pinInput(1)">1</button><button class="pin-btn" onclick="pinInput(2)">2</button><button class="pin-btn" onclick="pinInput(3)">3</button>
+    <button class="pin-btn" onclick="pinInput(4)">4</button><button class="pin-btn" onclick="pinInput(5)">5</button><button class="pin-btn" onclick="pinInput(6)">6</button>
+    <button class="pin-btn" onclick="pinInput(7)">7</button><button class="pin-btn" onclick="pinInput(8)">8</button><button class="pin-btn" onclick="pinInput(9)">9</button>
+    <button class="pin-btn" onclick="pinClear()">⌫</button><button class="pin-btn" onclick="pinInput(0)">0</button><button class="pin-btn" style="opacity:.3" disabled>✓</button>
+  </div>
+</div>
+
+<div id="sleep-overlay" onclick="wakeUp()">
+  <div style="font-size:48px">💤</div>
+  <div style="color:var(--muted);font-size:14px" data-i18n="sleep_msg">اضغط لإيقاظ الجهاز</div>
+</div>
+
+<header>
+  <div class="logo" onclick="showDebugPanel()" style="cursor:pointer">PortDesk v1.0 🐞</div>
+  <button class="action-btn" id="fs-toggle" onclick="toggleGamingMode()" data-i18n="gaming_mode_btn">🎮 وضع اللعب</button>
+  <div class="header-right">
+    <div class="latency-badge" id="latency-badge">--ms</div>
+    <div class="profile-badge" id="profile-badge" onclick="switchTab('settings')">normal</div>
+    <div class="status-pill" id="status-pill"><div class="dot"></div><span id="status-text">...</span></div>
+  </div>
+</header>
+<div class="sleep-bar"><div class="sleep-fill" id="sleep-fill" style="width:100%"></div></div>
+
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('touch')"><span class="tab-icon">🖱️</span data-i18n="tab_touch">لمس</div>
+  <div class="tab" onclick="switchTab('keys')"><span class="tab-icon">⌨️</span data-i18n="tab_keys">اختصارات</div>
+  <div class="tab" onclick="switchTab('pres')"><span class="tab-icon">📽️</span data-i18n="tab_pres">عرض</div>
+  <div class="tab" onclick="switchTab('gaming')"><span class="tab-icon">🕹️</span>Gaming</div>
+  <div class="tab" onclick="switchTab('screen')"><span class="tab-icon">🖥️</span data-i18n="tab_screen">شاشة</div>
+  <div class="tab" onclick="switchTab('settings')"><span class="tab-icon">⚙️</span data-i18n="tab_settings">إعدادات</div>
+  <div class="tab" onclick="switchTab('explorer')"><span class="tab-icon">📁</span>Explorer</div>
+  <div class="tab" onclick="switchTab('macros')"><span class="tab-icon">⚡</span>Macros</div>
+  <div class="tab" onclick="switchTab('tasks')"><span class="tab-icon">📊</span>Tasks</div>
+  <div class="tab" onclick="switchTab('sched')"><span class="tab-icon">⏰</span>Sched</div>
+  <div class="tab" onclick="switchTab('log')"><span class="tab-icon">📝</span>Log</div>
+</div>
+
+<!-- TOUCH -->
+<div class="panel active" id="panel-touch">
+  <div class="tp-wrap">
+    <div class="touchpad" id="touchpad">
+      <div class="tp-hint" id="tp-hint"><div style="font-size:28px;opacity:.25">👆</div><span data-i18n="tp_hint">المنطقة الحساسة</span><span style="font-size:10px;opacity:.4" data-i18n="tp_scroll_hint">إصبعين = سكرول</span></div>
+    </div>
+    <div class="gyro-bar" id="gyro-bar">
+      <div class="gyro-axis"><div class="gyro-axis-label">X (γ)</div><div class="gyro-track"><div class="gyro-fill" id="gyro-x"></div></div></div>
+      <div class="gyro-axis"><div class="gyro-axis-label">Y (β)</div><div class="gyro-track"><div class="gyro-fill y" id="gyro-y"></div></div></div>
+    </div>
+    <div class="gyro-row">
+      <button class="gyro-toggle-btn" id="gyro-btn" onclick="toggleGyro()">🌀 جيرو: إيقاف</button>
+      <button class="ai-btn" id="ai-btn" onclick="toggleAI()">🧠 AI: إيقاف</button>
+      <button class="calib-btn" onclick="calibrate()">🎯</button>
+      <button class="calib-btn" id="kb-btn" title="كيبورد الموبايل">📱</button>
+      <button class="calib-btn" onclick="showOSK()" title="كيبورد على الشاشة">⌨️</button>
+      <button class="calib-btn" id="select-mode-btn" onclick="toggleSelectMode()" title="وضع التحديد">🔲</button>
+    </div>
+    <div class="ai-info" id="ai-info" style="display:none">sens: <span id="ai-sens">--</span> | drift: <span id="ai-drift">--</span> | samples: <span id="ai-samples">0</span></div>
+    <div style="display:flex;gap:6px;flex-shrink:0;padding:0 0 6px">
+      <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+        <div class="click-row">
+          <div class="click-btn" id="btn-left" onpointerdown="btnDown(event,'left')" onpointerup="btnUp('left')">🖱️<span class="lbl" data-i18n="btn_left">يسار</span></div>
+          <div class="click-btn" id="btn-right" onpointerdown="btnDown(event,'right')" onpointerup="btnUp('right')">🖱️<span class="lbl" data-i18n="btn_right">يمين</span></div>
+          <div class="click-btn" id="btn-double" onpointerdown="btnDown(event,'double')" onpointerup="btnUp('double')">⚡<span class="lbl" data-i18n="btn_double">دبل</span></div>
+        </div>
+      </div>
+      <div class="scroll-col" style="flex-shrink:0;width:46px">
+        <div class="scroll-btn" onpointerdown="startScroll(1)" onpointerup="stopScroll()">🔼</div>
+        <div class="scroll-btn" onpointerdown="startScroll(-1)" onpointerup="stopScroll()">🔽</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SHORTCUTS -->
+<div class="panel" id="panel-keys">
+  <div class="shortcuts-wrap">
+    <!-- OS Toggle -->
+    <div class="os-toggle-row">
+      <button class="os-toggle-btn active" id="os-win-btn" onclick="setOSMode('windows')">🪟 Windows</button>
+      <button class="os-toggle-btn" id="os-lin-btn" onclick="setOSMode('linux')">🐧 Linux</button>
+    </div>
+
+    <!-- SYSTEM (same for both) -->
+    <div class="section-title">SYSTEM</div>
+    <div class="shortcut-grid">
+      <div class="sc-btn" onclick="sc(['ctrl','c'])"><div class="sc-icon">📋</div><div class="sc-label" data-i18n="sc_copy">نسخ</div><div class="sc-key">Ctrl+C</div></div>
+      <div class="sc-btn" onclick="sc(['ctrl','v'])"><div class="sc-icon">📌</div><div class="sc-label" data-i18n="sc_paste">لصق</div><div class="sc-key">Ctrl+V</div></div>
+      <div class="sc-btn" onclick="sc(['ctrl','z'])"><div class="sc-icon">↩️</div><div class="sc-label" data-i18n="sc_undo">تراجع</div><div class="sc-key">Ctrl+Z</div></div>
+      <div class="sc-btn" onclick="sc(['ctrl','y'])"><div class="sc-icon">↪️</div><div class="sc-label" data-i18n="btn_reset">إعادة</div><div class="sc-key">Ctrl+Y</div></div>
+      <div class="sc-btn" onclick="sc(['ctrl','a'])"><div class="sc-icon">☑️</div><div class="sc-label" data-i18n="sc_selall">تحديد الكل</div><div class="sc-key">Ctrl+A</div></div>
+      <div class="sc-btn" onclick="sc(['ctrl','s'])"><div class="sc-icon">💾</div><div class="sc-label" data-i18n="sc_save">حفظ</div><div class="sc-key">Ctrl+S</div></div>
+      <div class="sc-btn" onclick="sc(['ctrl','x'])"><div class="sc-icon">✂️</div><div class="sc-label" data-i18n="sc_cut">قص</div><div class="sc-key">Ctrl+X</div></div>
+      <div class="sc-btn" onclick="sc(['ctrl','f'])"><div class="sc-icon">🔍</div><div class="sc-label" data-i18n="sc_search">بحث</div><div class="sc-key">Ctrl+F</div></div>
+    </div>
+
+    <!-- WINDOWS OS shortcuts -->
+    <div id="sc-os-windows">
+      <div class="section-title">WINDOWS</div>
+      <div class="shortcut-grid">
+        <div class="sc-btn" onclick="sc(['alt','tab'])"><div class="sc-icon">🔄</div><div class="sc-label" data-i18n="sc_switch">تبديل</div><div class="sc-key">Alt+Tab</div></div>
+        <div class="sc-btn" onclick="sc(['win','d'])"><div class="sc-icon">🏠</div><div class="sc-label">Desktop</div><div class="sc-key">Win+D</div></div>
+        <div class="sc-btn" onclick="sc(['win','l'])"><div class="sc-icon">🔒</div><div class="sc-label" data-i18n="sc_lock">قفل</div><div class="sc-key">Win+L</div></div>
+        <div class="sc-btn" onclick="sc(['alt','f4'])"><div class="sc-icon">❌</div><div class="sc-label" data-i18n="sc_close">إغلاق</div><div class="sc-key">Alt+F4</div></div>
+        <div class="sc-btn" onclick="sc(['win','e'])"><div class="sc-icon">📁</div><div class="sc-label" data-i18n="sc_explorer">مستكشف</div><div class="sc-key">Win+E</div></div>
+        <div class="sc-btn" onclick="sc(['ctrl','shift','esc'])"><div class="sc-icon">📊</div><div class="sc-label">Task Mgr</div><div class="sc-key">Ctrl+Shift+Esc</div></div>
+        <div class="sc-btn" onclick="sk('printscreen')"><div class="sc-icon">📷</div><div class="sc-label">Screenshot</div><div class="sc-key">PrtSc</div></div>
+        <div class="sc-btn" onclick="sc(['win','tab'])"><div class="sc-icon">🗂️</div><div class="sc-label">Task View</div><div class="sc-key">Win+Tab</div></div>
+      </div>
+    </div>
+
+    <!-- LINUX OS shortcuts -->
+    <div id="sc-os-linux" style="display:none">
+      <div class="section-title">LINUX</div>
+      <div class="shortcut-grid">
+        <div class="sc-btn" onclick="sc(['alt','tab'])"><div class="sc-icon">🔄</div><div class="sc-label">Switch</div><div class="sc-key">Alt+Tab</div></div>
+        <div class="sc-btn" onclick="sc(['super','d'])"><div class="sc-icon">🏠</div><div class="sc-label">Desktop</div><div class="sc-key">Super+D</div></div>
+        <div class="sc-btn" onclick="sc(['super','l'])"><div class="sc-icon">🔒</div><div class="sc-label">Lock</div><div class="sc-key">Super+L</div></div>
+        <div class="sc-btn" onclick="sc(['alt','f4'])"><div class="sc-icon">❌</div><div class="sc-label">Close</div><div class="sc-key">Alt+F4</div></div>
+        <div class="sc-btn" onclick="sc(['super','e'])"><div class="sc-icon">📁</div><div class="sc-label">Files</div><div class="sc-key">Super+E</div></div>
+        <div class="sc-btn" onclick="sc(['ctrl','alt','t'])"><div class="sc-icon">🖥️</div><div class="sc-label">Terminal</div><div class="sc-key">Ctrl+Alt+T</div></div>
+        <div class="sc-btn" onclick="sc(['shift','printscreen'])"><div class="sc-icon">📷</div><div class="sc-label">Screenshot</div><div class="sc-key">Shift+PrtSc</div></div>
+        <div class="sc-btn" onclick="sc(['super','tab'])"><div class="sc-icon">🗂️</div><div class="sc-label">App Switch</div><div class="sc-key">Super+Tab</div></div>
+      </div>
+      <div class="section-title">GNOME / KDE</div>
+      <div class="shortcut-grid">
+        <div class="sc-btn" onclick="sc(['super','a'])"><div class="sc-icon">🔲</div><div class="sc-label">Activities</div><div class="sc-key">Super+A</div></div>
+        <div class="sc-btn" onclick="sc(['super','h'])"><div class="sc-icon">👁️</div><div class="sc-label">Hide Win</div><div class="sc-key">Super+H</div></div>
+        <div class="sc-btn" onclick="sc(['ctrl','alt','delete'])"><div class="sc-icon">⚡</div><div class="sc-label">Logout</div><div class="sc-key">Ctrl+Alt+Del</div></div>
+        <div class="sc-btn" onclick="sc(['super','up'])"><div class="sc-icon">⬆️</div><div class="sc-label">Maximize</div><div class="sc-key">Super+↑</div></div>
+        <div class="sc-btn" onclick="sc(['super','down'])"><div class="sc-icon">⬇️</div><div class="sc-label">Restore</div><div class="sc-key">Super+↓</div></div>
+        <div class="sc-btn" onclick="sc(['super','left'])"><div class="sc-icon">◀️</div><div class="sc-label">Snap Left</div><div class="sc-key">Super+←</div></div>
+        <div class="sc-btn" onclick="sc(['super','right'])"><div class="sc-icon">▶️</div><div class="sc-label">Snap Right</div><div class="sc-key">Super+→</div></div>
+        <div class="sc-btn" onclick="sc(['alt','f2'])"><div class="sc-icon">🚀</div><div class="sc-label">Run</div><div class="sc-key">Alt+F2</div></div>
+      </div>
+    </div>
+
+    <!-- MEDIA (same for both) -->
+    <div class="section-title">MEDIA</div>
+    <div class="shortcut-grid">
+      <div class="sc-btn" onclick="sk('playpause')"><div class="sc-icon">⏯️</div><div class="sc-label">Play/Pause</div></div>
+      <div class="sc-btn" onclick="sk('nexttrack')"><div class="sc-icon">⏭️</div><div class="sc-label" data-i18n="sc_next">التالي</div></div>
+      <div class="sc-btn" onclick="sk('prevtrack')"><div class="sc-icon">⏮️</div><div class="sc-label" data-i18n="sc_prev">السابق</div></div>
+      <div class="sc-btn" onclick="sk('volumemute')"><div class="sc-icon">🔇</div><div class="sc-label" data-i18n="sc_mute">كتم</div></div>
+      <div class="sc-btn" onclick="sk('volumeup')"><div class="sc-icon">🔊</div><div class="sc-label" data-i18n="sc_volup">صوت +</div></div>
+      <div class="sc-btn" onclick="sk('volumedown')"><div class="sc-icon">🔉</div><div class="sc-label" data-i18n="sc_voldn">صوت -</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PRESENTATION -->
+<div class="panel" id="panel-pres">
+  <div class="pres-wrap">
+    <div class="pres-btn start wide" onclick="sk('f5')"><div class="pi">▶️</div><div class="pl" data-i18n="pres_start">بدء (F5)</div></div>
+    <div class="pres-btn next" onclick="sk('right')" style="font-size:36px">▶</div>
+    <div class="pres-btn next" onclick="sk('left')" style="font-size:36px">◀</div>
+    <div class="pres-btn" onclick="sk('up')"><div class="pi">🔼</div><div class="pl" data-i18n="pres_up">فوق</div></div>
+    <div class="pres-btn" onclick="sk('down')"><div class="pi">🔽</div><div class="pl" data-i18n="pres_down">تحت</div></div>
+    <div class="pres-btn" onclick="sk('b')"><div class="pi">⬛</div><div class="pl" data-i18n="pres_black">أسود (B)</div></div>
+    <div class="pres-btn" onclick="sk('w')"><div class="pi">⬜</div><div class="pl" data-i18n="pres_white">أبيض (W)</div></div>
+    <div class="pres-btn end wide" onclick="sk('escape')"><div class="pi">⏹️</div><div class="pl" data-i18n="pres_end">إنهاء (Esc)</div></div>
+  </div>
+</div>
+
+<!-- GAMING -->
+<div class="panel" id="panel-gaming">
+  <div class="gc-layout">
+    <div class="gc-sidebar" id="gc-sidebar">
+      <div class="gc-sidebar-title">🎮 Profiles</div>
+      <div id="gc-profiles-list"></div>
+      <button class="gc-add-profile-btn" onclick="addGamingProfile()" data-i18n="gc_new">+ جديد</button>
+    </div>
+    <div class="gc-main">
+      <div class="g-stats" id="g-stats" style="display:none">
+        <div class="g-stat"><div class="g-stat-val" id="g-cpu">0%</div><div class="g-stat-label">CPU</div></div>
+        <div class="g-stat"><div class="g-stat-val" id="g-temp">N/A</div><div class="g-stat-label">🌡️</div></div>
+        <div class="g-stat"><div class="g-stat-val" id="g-ram">0%</div><div class="g-stat-label">RAM</div></div>
+      </div>
+      <div class="gc-type-row">
+        <button class="gc-type-btn" onclick="toggleGamingMode()" style="background:var(--accent);color:#fff;font-weight:700" data-i18n="gc_fullmode">🎮 وضع كامل</button>
+        <button class="gc-type-btn active" id="gctype-ps" onclick="setControllerType('ps')">PS</button>
+        <button class="gc-type-btn" id="gctype-xbox" onclick="setControllerType('xbox')">Xbox</button>
+        <div style="flex:1"></div>
+        <button class="g-tool-btn" id="stats-btn" onclick="toggleGamingStats()" style="flex:0;padding:4px 8px;font-size:10px">📊</button>
+        <button class="g-tool-btn" onclick="saveGamingProfile()" style="flex:0;padding:4px 8px;font-size:10px;color:var(--green)">💾</button>
+        <button class="g-tool-btn" onclick="openCtrlEditor()" style="flex:0;padding:4px 8px;font-size:10px;color:var(--accent)">✏️</button>
+      </div>
+      <div class="gc-main-grid" id="gc-main-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SCREEN -->
+<div class="panel" id="panel-screen">
+  <div class="screen-wrap">
+    <div class="screen-hint" id="screen-hint" data-i18n="scr_hint">اضغط تشغيل لعرض شاشة الكمبيوتر</div>
+    <canvas id="screen-canvas" class="screen-img" style="display:none"></canvas>
+
+    <!-- Controls row -->
+    <div class="screen-controls">
+      <button class="screen-btn" id="screen-start-btn" onclick="startScreen()" data-i18n="scr_start">▶ تشغيل</button>
+      <button class="screen-btn stop" id="screen-stop-btn" onclick="stopScreen()" style="display:none" data-i18n="scr_stop">⏹ إيقاف</button>
+      <button class="screen-btn" onclick="toggleFullscreen()" style="background:var(--surface);border-color:var(--border);color:var(--text)">⛶</button>
+      <button class="screen-btn" onclick="toggleScreenSettings()" style="background:var(--surface);border-color:var(--border);color:var(--muted)">⚙️</button>
+      <button class="screen-btn" onclick="checkScreenStatus()" style="background:var(--surface);border-color:var(--border);color:var(--muted);font-size:10px">🔍</button>
+      <div class="scr-stat" id="scr-stat">-- KB/s</div>
+    </div>
+
+    <!-- Stream settings (collapsible) -->
+    <div class="scr-settings" id="scr-settings" style="display:none">
+      <div class="scr-set-row">
+        <label data-i18n="scr_res">📐 دقة</label>
+        <select id="scr-res" onchange="applyStreamConfig()" class="scr-sel">
+          <option value="240">240p</option>
+          <option value="360">360p</option>
+          <option value="480" selected>480p</option>
+          <option value="720">720p</option>
+        </select>
+      </div>
+      <div class="scr-set-row">
+        <label data-i18n="scr_quality">🎨 جودة</label>
+        <input type="range" id="scr-quality" min="10" max="95" value="65" oninput="document.getElementById('scr-q-val').textContent=this.value;applyStreamConfig()">
+        <span class="sv" id="scr-q-val">65</span>
+      </div>
+      <div class="scr-set-row">
+        <label>🎞️ FPS</label>
+        <input type="range" id="scr-fps" min="5" max="30" value="30" oninput="document.getElementById('scr-fps-val').textContent=this.value;applyStreamConfig()">
+        <span class="sv" id="scr-fps-val">30</span>
+      </div>
+      <div class="scr-set-row">
+        <label data-i18n="scr_monitor">🖥️ شاشة</label>
+        <select id="scr-monitor" onchange="setMonitor()" class="scr-sel">
+          <option value="1">شاشة 1</option>
+        </select>
+        <button class="feat-refresh-btn" onclick="loadMonitors()">🔄</button>
+      </div>
+      <div class="scr-set-row">
+        <label data-i18n="scr_cursor">🎨 لون المؤشر</label>
+        <input type="color" id="scr-cursor-color" value="#ffffff" onchange="applyStreamConfig()" style="width:36px;height:24px;border:none;background:none;cursor:pointer;border-radius:4px;">
+      </div>
+    </div>
+
+    <!-- Touchpad (flex:1 = fills remaining space) -->
+    <div class="screen-tp" id="screen-tp"></div>
+
+    <!-- Click + Scroll row -->
+    <div style="display:flex;gap:6px;flex-shrink:0;">
+      <div style="flex:1;display:flex;gap:5px;">
+        <div class="click-btn" onpointerdown="btnDown(event,'left')" onpointerup="btnUp('left')">🖱️<span class="lbl">يسار</span></div>
+        <div class="click-btn" onpointerdown="btnDown(event,'right')" onpointerup="btnUp('right')">🖱️<span class="lbl">يمين</span></div>
+        <div class="click-btn" onpointerdown="btnDown(event,'double')" onpointerup="btnUp('double')">⚡<span class="lbl">دبل</span></div>
+      </div>
+      <div class="scroll-col" style="flex-shrink:0;width:46px;">
+        <div class="scroll-btn" onpointerdown="startScroll(1)" onpointerup="stopScroll()">🔼</div>
+        <div class="scroll-btn" onpointerdown="startScroll(-1)" onpointerup="stopScroll()">🔽</div>
+      </div>
+    </div>
+
+    <!-- Keyboard buttons -->
+    <div class="scr-kb-row">
+      <button class="scr-kb-btn" onclick="toggleScrInput()" style="background:var(--accent)11;border-color:var(--accent)44;color:var(--accent)" data-i18n="scr_type">⌨️ كتابة</button>
+      <button class="scr-kb-btn" onclick="showOSK()">🔡 OSK</button>
+      <button class="scr-kb-btn" onclick="sk('enter')">↵</button>
+      <button class="scr-kb-btn" onclick="sk('escape')">Esc</button>
+      <button class="scr-kb-btn" onclick="sk('backspace')">⌫</button>
+    </div>
+    <!-- Visible type input (shown/hidden on demand) -->
+    <div id="scr-type-wrap" style="display:none;gap:4px;flex-shrink:0;">
+      <input type="text" id="scr-type-input" inputmode="text" placeholder="اكتب هنا..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+        style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--accent)44;border-radius:8px;padding:8px;font-size:14px;outline:none;">
+      <button onclick="sk('enter')" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer;">↵</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Explorer Context Menu -->
+<div class="exp-ctx-menu" id="exp-ctx-menu">
+  <div class="exp-ctx-item" onclick="ctxOpen()">📂 <span>فتح</span></div>
+  <div class="exp-ctx-sep"></div>
+  <div class="exp-ctx-item" onclick="ctxCopy()">📋 <span>نسخ</span></div>
+  <div class="exp-ctx-item" onclick="ctxCut()">✂️ <span>قص</span></div>
+  <div class="exp-ctx-item" id="ctx-paste-item" onclick="ctxPaste()" style="display:none">📌 <span>لصق</span></div>
+  <div class="exp-ctx-sep"></div>
+  <div class="exp-ctx-item" onclick="ctxRename()">✏️ <span>إعادة تسمية</span></div>
+  <div class="exp-ctx-item" onclick="ctxShortcut()">🔗 <span>إنشاء اختصار</span></div>
+  <div class="exp-ctx-sep"></div>
+  <div class="exp-ctx-item" onclick="ctxProperties()">ℹ️ <span>Properties</span></div>
+  <div class="exp-ctx-sep"></div>
+  <div class="exp-ctx-item red" onclick="ctxDelete()">🗑️ <span>حذف</span></div>
+</div>
+
+
+<!-- Floating Keyboard -->
+<div class="kb-float" id="kb-float">
+  <input type="text" id="kb-float-input" placeholder="اكتب هنا..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <button class="kb-float-close" onclick="closeKbFloat()">✕</button>
+</div>
+
+<!-- Debug Panel -->
+<div id="pcc-debug-panel">
+  <div class="pcc-debug-header">
+    <span style="font-size:10px;color:var(--accent);font-family:monospace;flex:1">PortDesk Debug Console</span>
+    <button onclick="document.getElementById('pcc-debug-panel').classList.remove('show')" style="background:none;border:none;color:var(--accent2);cursor:pointer;font-size:14px">✕</button>
+  </div>
+  <div id="pcc-debug-list"></div>
+</div>
+<!-- OSK -->
+<div class="osk-overlay" id="osk-overlay" onclick="closeOSK()"></div>
+<div class="osk-panel" id="osk-panel">
+  <div class="osk-header">
+    <span id="osk-lang-label">EN</span>
+    <button class="osk-lang-btn" onclick="toggleOSKLang()">🌐 تبديل</button>
+    <button class="osk-close" onclick="closeOSK()">×</button>
+  </div>
+  <input type="text" class="osk-input" id="osk-input" placeholder="اكتب هنا..." inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <div class="osk-rows" id="osk-rows"></div>
+</div>
+<input class="hidden-input" id="hidden-input" type="text" inputmode="text">
+
+<!-- SETTINGS -->
+<div class="panel" id="panel-settings">
+  <div class="settings-wrap">
+    <div class="setting-group">
+      <div class="sg-title">MOUSE</div>
+      <div class="setting-row"><label data-i18n="set_tsens">⚡ حساسية اللمس</label><input id="sl-ts" type="range" min="2" max="100" value="18" oninput="touchSens=+this.value;document.getElementById('sv-ts').textContent=this.value;saveAllSettings()"><span class="sv" id="sv-ts">18</span></div>
+      <div class="setting-row"><label data-i18n="set_gsens">🌀 حساسية الجيرو</label><input id="sl-gs" type="range" min="2" max="60" value="12" oninput="gyroSens=+this.value;document.getElementById('sv-gs').textContent=this.value;saveAllSettings()"><span class="sv" id="sv-gs">12</span></div>
+      <div class="setting-row"><label>💀 Dead Zone</label><input id="sl-dz" type="range" min="0" max="50" value="4" oninput="deadZone=+this.value;document.getElementById('sv-dz').textContent=this.value;saveAllSettings()"><span class="sv" id="sv-dz">4</span></div>
+      <div class="setting-row"><label data-i18n="set_scroll">📜 سرعة السكرول</label><input id="sl-sc" type="range" min="1" max="50" value="5" oninput="scrollSpeed=+this.value;document.getElementById('sv-sc').textContent=this.value;saveAllSettings()"><span class="sv" id="sv-sc">5</span></div>
+    </div>
+    <div class="setting-group">
+      <div class="sg-title">FEEDBACK</div>
+      <div class="setting-row"><label>📳 Haptic</label><div class="toggle" id="tgl-haptic" onclick="tgl('haptic')"></div></div>
+      <div class="setting-row"><label>🔊 Sound</label><div class="toggle" id="tgl-sound" onclick="tgl('sound')"></div></div>
+    </div>
+    <div class="setting-group">
+      <div class="sg-title">AUTO-SLEEP</div>
+      <div class="setting-row"><label data-i18n="set_sleep_en">💤 تفعيل</label><div class="toggle on" id="tgl-sleep" onclick="tgl('sleep')"></div></div>
+      <div class="setting-row"><label data-i18n="set_sleep_dur">⏱️ مدة (ثانية)</label><input id="sl-sl" type="range" min="10" max="300" value="60" oninput="sleepTimeout=+this.value;document.getElementById('sv-sl').textContent=this.value+'s';saveAllSettings()"><span class="sv" id="sv-sl">60s</span></div>
+    </div>
+    <div class="setting-group">
+      <div class="sg-title">SECURITY — PIN</div>
+      <div class="setting-row"><label data-i18n="set_pin">🔐 تعيين PIN</label><button class="action-btn" onclick="setNewPIN()" data-i18n="btn_set">تعيين</button></div>
+      <div class="setting-row"><label data-i18n="set_pin_clr">🔓 إلغاء PIN</label><button class="action-btn red" onclick="clearPIN()" data-i18n="btn_cancel">إلغاء</button></div>
+    </div>
+    <div class="setting-group">
+      <div class="sg-title">BACKUP & RESTORE</div>
+      <div class="setting-row"><label data-i18n="set_export">💾 تصدير</label><button class="action-btn" onclick="exportSettings()" data-i18n="btn_export">تصدير</button></div>
+      <div class="setting-row"><label data-i18n="set_import">📥 استيراد</label><input type="file" id="import-file" accept=".json" style="display:none" onchange="importSettings(this)"><button class="action-btn" onclick="document.getElementById('import-file').click()" data-i18n="btn_import">استيراد</button></div>
+    </div>
+    <div class="setting-group">
+      <div class="sg-title">NETWORK SECURITY</div>
+      <div class="setting-row"><label data-i18n="set_wl_add">📱 إضافة هذا الجهاز للقايمة البيضا</label><button class="action-btn" onclick="addToWhitelist()" data-i18n="btn_add">إضافة</button></div>
+      <div class="setting-row"><label data-i18n="set_wl_clr">🗑️ مسح القايمة البيضا</label><button class="action-btn red" onclick="clearWhitelist()" data-i18n="btn_clear">مسح</button></div>
+      <div id="whitelist-display" style="font-size:10px;color:var(--muted);padding:6px 12px;font-family:'JetBrains Mono',monospace;"></div>
+    </div>
+    <div class="setting-group">
+      <div class="sg-title">AI GESTURE RESET</div>
+      <div class="setting-row"><label data-i18n="set_ai_reset">🧠 إعادة تعلم AI</label><button class="action-btn red" onclick="resetAI()">إعادة</button></div>
+    </div>
+    <div class="setting-group">
+      <div class="sg-title">APPEARANCE</div>
+      <div class="setting-row"><label data-i18n="set_theme">🌗 وضع النهار/الليل</label><div class="toggle" id="tgl-theme" onclick="toggleTheme()"></div></div>
+      <div class="setting-row">
+        <label data-i18n="set_lang">🌐 اللغة</label>
+        <select id="lang-select" onchange="setLang(this.value)" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px">
+          <option value="ar">العربية</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-group">
+      <div class="sg-title">OPTIONAL FEATURES</div>
+      <div class="setting-row"><label data-i18n="set_audio">🔊 Remote Audio</label><div class="toggle" id="tgl-audio" onclick="toggleRemoteAudio()"></div></div>
+      <div class="setting-row" id="audio-status-row" style="display:none">
+        <div class="audio-wave"><div class="audio-bar"></div><div class="audio-bar"></div><div class="audio-bar"></div><div class="audio-bar"></div><div class="audio-bar"></div></div>
+        <span style="font-size:10px;color:var(--green);margin-right:8px" data-i18n="streaming">جاري البث</span>
+      </div>
+      <div class="setting-row"><label data-i18n="set_mic">🎙️ ميكروفون الموبايل</label><button class="action-btn" id="mic-settings-btn" onclick="toggleMicFromSettings()" data-i18n="btn_start">تشغيل</button></div>
+      <div class="setting-row" id="mic-settings-status" style="display:none;flex-direction:column;gap:4px;align-items:flex-start">
+        <div class="mic-vol-bar" style="width:100%"><div class="mic-vol-fill" id="mic-vol-fill"></div></div>
+        <span class="mic-status" id="mic-status" style="font-size:10px"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EXPLORER -->
+<div class="panel" id="panel-explorer">
+  <div class="feat-wrap" style="gap:4px">
+    <!-- Breadcrumb -->
+    <div class="exp-breadcrumb" id="exp-breadcrumb">
+      <span class="exp-bc-item exp-bc-root" onclick="expGoto('')" data-i18n="exp_root">🖥️ هذا الجهاز</span>
+    </div>
+    <!-- Toolbar -->
+    <div class="exp-toolbar">
+      <button class="exp-tool-btn" id="exp-up-btn" onclick="expGoUp()" disabled>⬆</button>
+      <button class="exp-tool-btn" onclick="expRefresh()">🔄</button>
+      <button class="exp-tool-btn" onclick="expMkdir()">📁+</button>
+      <button class="exp-tool-btn" onclick="expMkfile()">📄+</button>
+      <button class="exp-tool-btn accent" id="exp-paste-btn" onclick="ctxPaste()" style="display:none">📌 لصق</button>
+      <div style="flex:1"></div>
+      <span class="exp-sel-count" id="exp-sel-count" style="display:none"></span>
+      <button class="exp-tool-btn accent" id="exp-dl-btn" onclick="expDownload()" style="display:none">⬇</button>
+      <label class="exp-tool-btn accent" style="cursor:pointer">⬆ رفع<input type="file" id="exp-upload-input" multiple style="display:none" onchange="expUpload(this.files)"></label>
+    </div>
+    <!-- Sort row -->
+    <div class="exp-sort-row">
+      <button class="exp-sort-btn active" id="sort-name" onclick="expSetSort('name')">الاسم ↕</button>
+      <button class="exp-sort-btn" id="sort-date" onclick="expSetSort('date')">التاريخ ↕</button>
+      <button class="exp-sort-btn" id="sort-size" onclick="expSetSort('size')">الحجم ↕</button>
+      <button class="exp-sort-btn" id="sort-type" onclick="expSetSort('type')">النوع ↕</button>
+    </div>
+    <!-- Upload progress -->
+    <div id="exp-upload-progress" style="display:none">
+      <div class="feat-progress-bar"><div class="feat-progress-fill" id="exp-upload-fill"></div></div>
+      <div style="font-size:10px;color:var(--muted);text-align:center" id="exp-upload-status"></div>
+    </div>
+    <!-- Download progress -->
+    <div class="exp-dl-progress" id="exp-dl-progress">
+      <div class="feat-progress-bar"><div class="feat-progress-fill" id="exp-dl-fill"></div></div>
+      <div style="font-size:10px;color:var(--muted);text-align:center" id="exp-dl-status">جاري التحميل...</div>
+    </div>
+    <!-- File list -->
+    <div class="exp-list" id="exp-list">
+      <div class="exp-loading">جاري التحميل...</div>
+    </div>
+  </div>
+</div>
+
+<!-- MACROS -->
+<div class="panel" id="panel-macros">
+  <div class="feat-wrap">
+    <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+      <div class="feat-section-title" style="flex:1;margin:0" data-i18n="macros_title">⚡ الماكروهات</div>
+      <button class="action-btn" onclick="startMacroRecord()" id="macro-rec-btn" data-i18n="macro_rec">⏺ تسجيل</button>
+    </div>
+    <div id="macro-recording-ui" style="display:none;flex-direction:column;gap:6px">
+      <div class="clip-box" id="macro-steps-preview" style="min-height:60px;font-size:10px;font-family:'JetBrains Mono',monospace">لا يوجد خطوات بعد...</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap">
+        <button class="feat-macro-add" onclick="macroAddClick('left')">🖱 كليك</button>
+        <button class="feat-macro-add" onclick="macroAddClick('right')">🖱 يمين</button>
+        <button class="feat-macro-add" onclick="macroAddClick('double')">⚡ دبل</button>
+        <button class="feat-macro-add" onclick="macroAddKey()">⌨ مفتاح</button>
+        <button class="feat-macro-add" onclick="macroAddType()">✏ نص</button>
+        <button class="feat-macro-add" onclick="macroAddDelay()">⏱ انتظر</button>
+      </div>
+      <div style="display:flex;gap:6px">
+        <input id="macro-name-input" placeholder="اسم الماكرو..." style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px;font-size:12px;outline:none">
+        <button class="action-btn" onclick="saveMacro()">💾 حفظ</button>
+        <button class="action-btn red" onclick="cancelMacroRecord()">✖</button>
+      </div>
+    </div>
+    <div id="macros-list" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1"></div>
+  </div>
+</div>
+
+<!-- TASKS -->
+<div class="panel" id="panel-tasks">
+  <div class="feat-wrap">
+    <div class="task-toolbar">
+      <span style="font-size:11px;color:var(--muted)" data-i18n="tasks_title">العمليات الجارية</span>
+      <div style="flex:1"></div>
+      <button class="exp-tool-btn" onclick="loadTasks()">🔄 تحديث</button>
+      <button class="exp-tool-btn accent" id="tasks-auto-btn" onclick="toggleTasksAuto()" data-i18n="tasks_auto">▶ تلقائي</button>
+    </div>
+    <div class="task-header">
+      <span style="flex:1">الاسم</span>
+      <span style="width:42px;text-align:right">CPU</span>
+      <span style="width:50px;text-align:right">RAM</span>
+      <span style="width:40px"></span>
+    </div>
+    <div class="task-list" id="task-list"><div class="exp-loading">اضغط تحديث لتحميل العمليات</div></div>
+  </div>
+</div>
+
+<!-- SCHEDULED -->
+<div class="panel" id="panel-sched">
+  <div class="feat-wrap">
+    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+      <div class="feat-section-title" style="flex:1;margin:0" data-i18n="sched_title">⏰ المهام المجدولة</div>
+      <button class="exp-tool-btn" onclick="loadScheduled()">🔄</button>
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0">
+      <input type="time" id="sched-time" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;outline:none">
+      <input type="text" id="sched-name" placeholder="اسم المهمة" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;outline:none">
+    </div>
+    <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
+      <select id="sched-macro" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;outline:none">
+        <option value="" data-i18n="sched_macro_placeholder">اختار ماكرو...</option>
+      </select>
+      <button class="action-btn" onclick="addScheduled()" data-i18n="btn_add2">+ إضافة</button>
+    </div>
+    <div class="task-list" id="sched-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
+      <div class="exp-loading">لا يوجد مهام مجدولة</div>
+    </div>
+  </div>
+</div>
+
+<!-- LOG -->
+<div class="panel" id="panel-log">
+  <div class="log-wrap">
+    <div style="display:flex;gap:6px;align-items:center;flex-shrink:0">
+      <span style="flex:1;font-size:11px;color:var(--muted)" data-i18n="log_title">لوج</span>
+      <button class="exp-tool-btn" id="ltab-srv" onclick="setLogTab('server')" style="color:var(--accent)">Server</button>
+      <button class="exp-tool-btn" id="ltab-cli" onclick="setLogTab('client')">Client</button>
+      <button class="exp-tool-btn" onclick="refreshLog()">🔄</button>
+      <button class="exp-tool-btn" style="color:var(--accent2)" onclick="clearCurrentLog()">🗑</button>
+    </div>
+    <div class="log-list" id="log-list"><div style="color:var(--muted);text-align:center;padding:20px;font-size:11px">لا يوجد أحداث</div></div>
+    <div class="log-list" id="client-log-list" style="display:none"></div>
+  </div>
+</div>
+
+<!-- CONTROLLER EDITOR -->
+<div id="ctrl-editor">
+  <div id="ctrl-editor-header">
+    <span id="ctrl-editor-title">✏️ تحرير — <span id="ctrl-editor-profile"></span></span>
+    <div style="display:flex;gap:8px;margin-right:auto">
+      <button class="ctrl-editor-btn" id="ctrl-type-ps-btn"  onclick="editorSetType('ps')">PS</button>
+      <button class="ctrl-editor-btn" id="ctrl-type-xbox-btn" onclick="editorSetType('xbox')">Xbox</button>
+    </div>
+    <button class="ctrl-editor-btn save" onclick="saveCtrlLayout()">💾 حفظ</button>
+    <button class="ctrl-editor-btn cancel" onclick="cancelCtrlEdit()">✖</button>
+  </div>
+  <div id="ctrl-editor-body">
+    <div id="ctrl-palette">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:4px">
+        <span class="palette-title">Palette ← اسحب</span>
+        <span style="font-size:9px;color:var(--accent);font-family:monospace">scroll →</span>
+      </div>
+      <div id="ctrl-palette-btns"></div>
+    </div>
+    <div id="ctrl-canvas-wrap">
+      <div id="ctrl-editor-canvas"></div>
+    </div>
+  </div>
+</div>
+
+<!-- KEY PICKER -->
+<div id="key-picker-overlay" onclick="closeKeyPicker()"></div>
+<div id="key-picker-modal">
+  <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--accent)" data-i18n="keypicker_title">🎹 اختار مفتاح</div>
+  <div id="key-picker-cats"></div>
+  <div id="key-picker-keys"></div>
+  <button onclick="closeKeyPicker()" style="margin-top:10px;width:100%;padding:10px;background:var(--accent2)11;border:1px solid var(--accent2)44;border-radius:8px;color:var(--accent2);cursor:pointer;font-size:12px">إلغاء</button>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Global State ───────────────────────────────────────────────────────────────
+var touchSens = 18, gyroSens = 12, deadZone = 4, scrollSpeed = 5;
+var selectMode = false, _gyroLocked = false;
+var gyroActive = false, calibB = 0, calibG = 0, lastB = 0, lastG = 0;
+var scrollTimer = null, hapticOn = false, soundOn = false;
+var sleepOn = true, sleepTimeout = 60, sleepTimer = null;
+var currentProfile = 'normal';
+var savedPINHash = localStorage.getItem('portdesk_pin_hash') || null;
+var savedPINSalt = localStorage.getItem('portdesk_pin_salt') || null;
+var statsVisible = false, statsInterval = null;
+var pinBuffer = [];
+var aiActive = false;
+var aiData = {samples:0, totalDrift:0, avgSens:12, avgDead:4, history:[]};
+try { var _ai=localStorage.getItem('portdesk_ai'); if(_ai) aiData=JSON.parse(_ai); } catch(e) {}
+var gcType = 'ps';
+var gcProfiles = {};
+try { var _gcp=localStorage.getItem('gc_profiles'); if(_gcp) gcProfiles=JSON.parse(_gcp); } catch(e) {}
+var gcActive = localStorage.getItem('gc_active') || null;
+var lastVal = "";
+var audioCtx = null;
+var toastTimer = null;
+var VIBRATIONS = { click:18, right_click:[30,20,30], double_click:[15,10,15,10,15], shortcut:28, scroll:8, key:12, error:[50,30,50,30,50] };
+function vibrateAction(type) {
+    if (!hapticOn || !navigator.vibrate) return;
+    navigator.vibrate(VIBRATIONS[type] || 15);
+}
+function vibrate(p) { if (hapticOn && navigator.vibrate) navigator.vibrate(p); }
+
+// ── Settings Persistence ───────────────────────────────────────────────────────
+function saveAllSettings() {
+    localStorage.setItem('portdesk_settings', JSON.stringify({
+        touchSens, gyroSens, deadZone, scrollSpeed,
+        hapticOn, soundOn, sleepOn, sleepTimeout,
+        currentProfile, ai: aiData,
+        aiActive, gyroActive
+    }));
+}
+
+function loadAllSettings() {
+    var raw = localStorage.getItem('portdesk_settings');
+    if (!raw) return;
+    var d;
+    try { d = JSON.parse(raw); } catch(e) { toast('⚠ إعدادات تالفة'); return; }
+
+    touchSens     = d.touchSens     ?? touchSens;
+    gyroSens      = d.gyroSens      ?? gyroSens;
+    deadZone      = d.deadZone      ?? deadZone;
+    scrollSpeed   = d.scrollSpeed   ?? scrollSpeed;
+    hapticOn      = d.hapticOn      ?? hapticOn;
+    soundOn       = d.soundOn       ?? soundOn;
+    sleepOn       = d.sleepOn       ?? sleepOn;
+    sleepTimeout  = d.sleepTimeout  ?? sleepTimeout;
+    currentProfile= d.currentProfile?? currentProfile;
+    aiData        = d.ai            ?? aiData;
+    aiActive      = d.aiActive      ?? aiActive;
+    gyroActive    = d.gyroActive    ?? gyroActive;
+
+    var sliders = [
+        ['sl-ts', touchSens,   'sv-ts', touchSens],
+        ['sl-gs', gyroSens,    'sv-gs', gyroSens],
+        ['sl-dz', deadZone,    'sv-dz', deadZone],
+        ['sl-sc', scrollSpeed, 'sv-sc', scrollSpeed],
+        ['sl-sl', sleepTimeout,'sv-sl', sleepTimeout + 's'],
+    ];
+    sliders.forEach(function(s) {
+        var el = document.getElementById(s[0]);
+        if (el) el.value = s[1];
+        var disp = document.getElementById(s[2]);
+        if (disp) disp.textContent = s[3];
+    });
+
+    document.getElementById('tgl-haptic').classList.toggle('on', hapticOn);
+    document.getElementById('tgl-sound').classList.toggle('on', soundOn);
+    document.getElementById('tgl-sleep').classList.toggle('on', sleepOn);
+
+    var aiBtn = document.getElementById('ai-btn');
+    aiBtn.classList.toggle('on', aiActive);
+    aiBtn.textContent = aiActive ? '🧠 AI: تشغيل' : '🧠 AI: إيقاف';
+    document.getElementById('ai-info').style.display = aiActive ? 'block' : 'none';
+
+    var gyroBtn = document.getElementById('gyro-btn');
+    gyroBtn.textContent = gyroActive ? '🌀 جيرو: تشغيل' : '🌀 جيرو: إيقاف';
+    gyroBtn.classList.toggle('on', gyroActive);
+    document.getElementById('gyro-bar').classList.toggle('show', gyroActive);
+
+    setProfile(currentProfile);
+    updateAIDisplay();
+    toast('✅ تم تحميل الإعدادات');
+}
+
+// ── Socket ─────────────────────────────────────────────────────────────────────
+var socket = io();
+socket.on('connect', function() {
+    document.getElementById('status-pill').className = 'status-pill on';
+    document.getElementById('status-text').textContent = '✓';
+    toast('✅ متصل');
+    measureLatency();
+});
+socket.on('disconnect', function() {
+    document.getElementById('status-pill').className = 'status-pill';
+    document.getElementById('status-text').textContent = '✗';
+});
+
+// ── Toast ──────────────────────────────────────────────────────────────────────
+function toast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { el.classList.remove('show'); }, 2000);
+}
+
+// ── Tabs ───────────────────────────────────────────────────────────────────────
+var tabIds = ['touch','keys','pres','gaming','screen','settings','explorer','macros','tasks','sched','log'];
+function switchTab(id) {
+    document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    var panel = document.getElementById('panel-' + id);
+    if (panel) panel.classList.add('active');
+    var idx = tabIds.indexOf(id);
+    if (idx >= 0) document.querySelectorAll('.tab')[idx].classList.add('active');
+    if (id !== 'screen') stopScreen();
+    if (id === 'sched') loadScheduled();
+    var fst = document.getElementById('fs-toggle');
+    if (fst) fst.style.display = id === 'gaming' ? 'block' : 'none';
+}
+
+// ── Sleep ──────────────────────────────────────────────────────────────────────
+function startSleepTimer() {
+    if (!sleepOn) return;
+    clearTimeout(sleepTimer);
+    var el = document.getElementById('sleep-fill');
+    el.style.transition = 'none'; el.style.width = '100%';
+    requestAnimationFrame(function() { requestAnimationFrame(function() {
+        el.style.transition = 'width ' + sleepTimeout + 's linear';
+        el.style.width = '0%';
+    }); });
+    sleepTimer = setTimeout(function() {
+        document.getElementById('sleep-overlay').classList.add('show');
+    }, sleepTimeout * 1000);
+}
+function wakeUp() {
+    document.getElementById('sleep-overlay').classList.remove('show');
+    startSleepTimer();
+}
+document.addEventListener('touchstart', startSleepTimer);
+document.addEventListener('mousedown', startSleepTimer);
+
+// ── PIN (SHA-256 + Salt) ───────────────────────────────────────────────────────
+function _genSalt() {
+    var arr = new Uint8Array(16);
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(arr);
+    else for (var i=0;i<16;i++) arr[i] = Math.floor(Math.random()*256);
+    return Array.from(arr).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+}
+function _simpleHash(str) {
+    var h = 0x811c9dc5;
+    for (var i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = (h * 0x01000193) >>> 0;
+    }
+    var h2 = 0;
+    for (var i = str.length - 1; i >= 0; i--) {
+        h2 ^= str.charCodeAt(i);
+        h2 = (h2 * 0x01000193) >>> 0;
+    }
+    return h.toString(16).padStart(8,'0') + h2.toString(16).padStart(8,'0') + str.length.toString(16);
+}
+function _sha256(str) {
+    if (window.crypto && window.crypto.subtle) {
+        var enc = new TextEncoder().encode(str);
+        return window.crypto.subtle.digest('SHA-256', enc).then(function(buf) {
+            return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+        });
+    }
+    return Promise.resolve(_simpleHash(str));
+}
+
+function checkPIN() {
+    if (savedPINHash) document.getElementById('pin-screen').classList.add('show');
+    else startSleepTimer();
+}
+function pinInput(n) {
+    if (pinBuffer.length >= 4) return;
+    pinBuffer.push(n);
+    for (var i = 0; i < pinBuffer.length; i++) document.getElementById('pd' + i).classList.add('filled');
+    if (pinBuffer.length === 4) pinConfirm();
+}
+function pinClear() {
+    pinBuffer.pop();
+    for (var i = 0; i < 4; i++) document.getElementById('pd' + i).classList.remove('filled');
+    for (var i = 0; i < pinBuffer.length; i++) document.getElementById('pd' + i).classList.add('filled');
+}
+function pinConfirm() {
+    var entered = pinBuffer.join('');
+    _sha256(savedPINSalt + entered).then(function(hash) {
+        var success = (hash === savedPINHash);
+        reportPinResult(success);
+        if (success) {
+            document.getElementById('pin-screen').classList.remove('show');
+            document.getElementById('pin-error').textContent = '';
+            startSleepTimer();
+        } else {
+            document.getElementById('pin-error').textContent = 'PIN غلط';
+            pinBuffer = [];
+            for (var i = 0; i < 4; i++) document.getElementById('pd' + i).classList.remove('filled');
+            vibrateAction('error');
+        }
+    });
+}
+function setNewPIN() {
+    var p = prompt('PIN جديد (4 أرقام):');
+    if (!p) return;
+    if (!/^\d{4}$/.test(p)) { toast('❌ 4 أرقام فقط'); return; }
+    var salt = _genSalt();
+    _sha256(salt + p).then(function(hash) {
+        localStorage.setItem('portdesk_pin_salt', salt);
+        localStorage.setItem('portdesk_pin_hash', hash);
+        localStorage.removeItem('portdesk_pin');
+        savedPINSalt = salt;
+        savedPINHash = hash;
+        toast('✅ تم حفظ PIN');
+    });
+}
+function clearPIN() {
+    localStorage.removeItem('portdesk_pin_hash');
+    localStorage.removeItem('portdesk_pin_salt');
+    localStorage.removeItem('portdesk_pin');
+    savedPINHash = null; savedPINSalt = null;
+    toast('🔓 تم إلغاء PIN');
+}
+
+// ── Profile ────────────────────────────────────────────────────────────────────
+var PROFILES = {
+    normal:       { touchSens:18, gyroSens:12, deadZone:4,  scrollSpeed:5  },
+    gaming:       { touchSens:28, gyroSens:20, deadZone:2,  scrollSpeed:3  },
+    presentation: { touchSens:10, gyroSens:8,  deadZone:6,  scrollSpeed:2  },
+    media:        { touchSens:15, gyroSens:10, deadZone:4,  scrollSpeed:8  },
+    browsing:     { touchSens:16, gyroSens:10, deadZone:4,  scrollSpeed:10 },
+};
+function setProfile(name) {
+    var p = PROFILES[name]; if (!p) return;
+    if (!aiActive) { touchSens = p.touchSens; gyroSens = p.gyroSens; deadZone = p.deadZone; }
+    scrollSpeed = p.scrollSpeed;
+    currentProfile = name;
+    document.getElementById('profile-badge').textContent = name;
+    saveAllSettings();
+}
+
+// ── Latency ────────────────────────────────────────────────────────────────────
+function measureLatency() {
+    var t = Date.now();
+    fetch('/ping').then(function(r) { return r.json(); }).then(function() {
+        var ms = Date.now() - t, el = document.getElementById('latency-badge');
+        el.textContent = ms + 'ms';
+        el.className = 'latency-badge' + (ms > 100 ? ' bad' : ms > 50 ? ' warn' : '');
+    }).catch(function() { document.getElementById('latency-badge').textContent = '--ms'; });
+}
+setInterval(measureLatency, 3000);
+
+// ── Audio / Haptic ─────────────────────────────────────────────────────────────
+function initAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function playTone(freq, dur) {
+    if (!soundOn) return; initAudio();
+    var o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.connect(g); g.connect(audioCtx.destination);
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(.35, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001, audioCtx.currentTime + dur);
+    o.start(); o.stop(audioCtx.currentTime + dur);
+}
+
+// ── Settings Toggles ───────────────────────────────────────────────────────────
+function tgl(name) {
+    var el = document.getElementById('tgl-' + name);
+    el.classList.toggle('on');
+    if (name === 'haptic') {
+        hapticOn = el.classList.contains('on');
+        if (hapticOn && navigator.vibrate) navigator.vibrate(30);
+    }
+    if (name === 'sound')   soundOn   = el.classList.contains('on');
+    if (name === 'sleep') {
+        sleepOn = el.classList.contains('on');
+        if (sleepOn) startSleepTimer();
+        else { clearTimeout(sleepTimer); document.getElementById('sleep-fill').style.width = '100%'; }
+    }
+    saveAllSettings();
+}
+
+// ── Touchpad ───────────────────────────────────────────────────────────────────
+var tp = document.getElementById('touchpad');
+var touches = {}, lastPos = null, moved = false, lpTimer = null;
+
+tp.addEventListener('touchstart', function(e) {
+    e.preventDefault(); startSleepTimer();
+    Array.from(e.changedTouches).forEach(function(t) { touches[t.identifier] = { x:t.clientX, y:t.clientY }; });
+    if (e.touches.length === 1) {
+        moved = false; lastPos = { x:e.touches[0].clientX, y:e.touches[0].clientY };
+        if (selectMode) {
+            socket.emit('selector_start', {});
+        } else {
+            lpTimer = setTimeout(function() {
+                if (!moved) { socket.emit('click', { type:'right' }); rippleAt(lastPos.x, lastPos.y); vibrateAction('right_click'); toast('🖱️ كليك يمين'); }
+            }, 600);
+        }
+    }
+}, { passive:false });
+
+tp.addEventListener('touchmove', function(e) {
+    e.preventDefault();
+    if (e.touches.length === 1) {
+        var t = e.touches[0], dx = t.clientX - lastPos.x, dy = t.clientY - lastPos.y;
+        if (Math.abs(dx) + Math.abs(dy) > 3) { moved = true; clearTimeout(lpTimer); }
+        var rdx = Math.round(dx*touchSens*.07), rdy = Math.round(dy*touchSens*.07);
+        if (selectMode) {
+            socket.emit('selector_move', { dx:rdx, dy:rdy });
+        } else {
+            socket.emit('move', { dx:rdx, dy:rdy });
+        }
+        lastPos = { x:t.clientX, y:t.clientY };
+    } else if (e.touches.length === 2) {
+        clearTimeout(lpTimer); moved = true;
+        var t1 = e.touches[0], t2 = e.touches[1];
+        if (touches[t1.identifier] && touches[t2.identifier]) {
+            var avgY = (t1.clientY+t2.clientY)/2, prevY = (touches[t1.identifier].y+touches[t2.identifier].y)/2, dy = avgY - prevY;
+            if (Math.abs(dy) > 1) socket.emit('scroll', { dy: dy > 0 ? -scrollSpeed : scrollSpeed });
+        }
+        Array.from(e.touches).forEach(function(t) { if (touches[t.identifier]) touches[t.identifier] = { x:t.clientX, y:t.clientY }; });
+    }
+}, { passive:false });
+
+tp.addEventListener('touchend', function(e) {
+    e.preventDefault(); clearTimeout(lpTimer);
+    Array.from(e.changedTouches).forEach(function(t) { delete touches[t.identifier]; });
+    if (selectMode) {
+        if (e.touches.length === 0) {
+            socket.emit('selector_end', {});
+        } else if (e.touches.length === 1) {
+            lastPos = { x:e.touches[0].clientX, y:e.touches[0].clientY };
+        }
+    } else if (!moved && e.changedTouches.length === 1) {
+        socket.emit('click', { type:'left' }); vibrateAction('click'); playTone(700, .04);
+        rippleAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+    }
+    if (e.touches.length === 0) lastPos = null;
+}, { passive:false });
+
+tp.addEventListener('touchcancel', function(e) {
+    if (selectMode) socket.emit('selector_end', {});
+    clearTimeout(lpTimer); lastPos = null;
+}, { passive:false });
+
+function rippleAt(x, y) {
+    var rect = tp.getBoundingClientRect(), r = document.createElement('div');
+    r.className = 'ripple';
+    r.style.cssText = 'left:' + (x-rect.left-20) + 'px;top:' + (y-rect.top-20) + 'px;width:40px;height:40px';
+    tp.appendChild(r); setTimeout(function() { r.remove(); }, 400);
+}
+
+// ── Clicks ─────────────────────────────────────────────────────────────────────
+function btnDown(e, type) {
+    e.preventDefault();
+    var el = document.getElementById('btn-' + type);
+    if (el) el.classList.add('pressed');
+    socket.emit('click', { type: type });
+    vibrateAction(type === 'double' ? 'double_click' : type === 'right' ? 'right_click' : 'click');
+    playTone(700, .04);
+}
+function btnUp(type) {
+    var el = document.getElementById('btn-' + type);
+    if (el) el.classList.remove('pressed');
+}
+function startScroll(dir) {
+    socket.emit('scroll', { dy: dir * scrollSpeed });
+    scrollTimer = setInterval(function() { socket.emit('scroll', { dy: dir * scrollSpeed }); }, 110);
+}
+function stopScroll() { clearInterval(scrollTimer); socket.emit('scroll', { dy: 0 }); }
+
+// ── Shortcuts ──────────────────────────────────────────────────────────────────
+var KEY_MAP_JS = {
+    'win':'winleft','windows':'winleft','super':'winleft',
+    'ctrl':'ctrl','control':'ctrl',
+    'alt':'alt','shift':'shift',
+    'esc':'escape','escape':'escape',
+    'del':'delete','ins':'insert',
+    'backspace':'backspace','enter':'enter','return':'enter',
+    'tab':'tab','space':'space',
+    'up':'up','down':'down','left':'left','right':'right',
+    'printscreen':'printscreen','prtsc':'printscreen',
+    'playpause':'playpause','nexttrack':'nexttrack','prevtrack':'prevtrack',
+    'volumemute':'volumemute','volumeup':'volumeup','volumedown':'volumedown',
+    'f1':'f1','f2':'f2','f3':'f3','f4':'f4','f5':'f5','f6':'f6',
+    'f7':'f7','f8':'f8','f9':'f9','f10':'f10','f11':'f11','f12':'f12'
+};
+function mapKeyJS(k) { return KEY_MAP_JS[k.toLowerCase()] || k.toLowerCase(); }
+function sc(keys) {
+    socket.emit('shortcut', { keys: keys.map(function(k){ return mapKeyJS(k); }) });
+    vibrateAction('shortcut'); toast('⌨️ ' + keys.join('+'));
+}
+function sk(key) {
+    socket.emit('key', { key: mapKeyJS(key) }); vibrateAction('key'); toast('⌨️ ' + key);
+}
+function kd(k) { socket.emit('key_down', { key: mapKeyJS(k) }); vibrateAction('key'); }
+function ku(k) { socket.emit('key_up',   { key: mapKeyJS(k) }); }
+
+// ── Screen Tab Keyboard ────────────────────────────────────────────────────────
+function toggleScrInput() {
+    var wrap = document.getElementById('scr-type-wrap');
+    var inp  = document.getElementById('scr-type-input');
+    var visible = wrap.style.display !== 'none';
+    wrap.style.display = visible ? 'none' : 'flex';
+    if (!visible) { inp.value = ''; inp.focus(); }
+}
+
+(function() {
+    var scrInp = document.getElementById('scr-type-input');
+    if (!scrInp) return;
+    scrInp.addEventListener('input', function(e) {
+        var val = e.target.value;
+        if (val) { socket.emit('type', { text: val }); e.target.value = ''; }
+    });
+    scrInp.addEventListener('keydown', function(e) {
+        if      (e.key === 'Enter')     { socket.emit('key', { key:'enter' });     e.preventDefault(); }
+        else if (e.key === 'Backspace') { socket.emit('key', { key:'backspace' }); e.preventDefault(); }
+        else if (e.key === 'Escape')    { socket.emit('key', { key:'escape' });    e.preventDefault(); }
+        else if (e.key === 'Tab')       { socket.emit('key', { key:'tab' });       e.preventDefault(); }
+    });
+})();
+
+// ── Gyro ───────────────────────────────────────────────────────────────────────
+function toggleGyro() {
+    if (!gyroActive) {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission().then(function(r) {
+                if (r === 'granted') enableGyro(); else toast('❌ رُفض الإذن');
+            });
+        } else if (typeof DeviceOrientationEvent !== 'undefined') {
+            enableGyro();
+        } else {
+            toast('❌ الجيرو غير مدعوم');
+        }
+    } else { disableGyro(); }
+}
+function enableGyro() {
+    gyroActive = true; calibrate();
+    document.getElementById('gyro-btn').textContent = '🌀 جيرو: تشغيل';
+    document.getElementById('gyro-btn').classList.add('on');
+    document.getElementById('gyro-bar').classList.add('show');
+    toast('🌀 الجيروسكوب شغال');
+    saveAllSettings();
+}
+function disableGyro() {
+    gyroActive = false;
+    document.getElementById('gyro-btn').textContent = '🌀 جيرو: إيقاف';
+    document.getElementById('gyro-btn').classList.remove('on');
+    document.getElementById('gyro-bar').classList.remove('show');
+    saveAllSettings();
+}
+function calibrate() {
+    if (gyroActive) {
+        calibB = lastB; calibG = lastG;
+        toast('🎯 معايرة'); vibrateAction('key');
+        return;
+    }
+    function _oneShotCalib(e) {
+        lastB = e.beta || 0; lastG = e.gamma || 0;
+        calibB = lastB; calibG = lastG;
+        toast('🎯 معايرة محفوظة'); vibrateAction('key');
+    }
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then(function(r) {
+            if (r === 'granted') window.addEventListener('deviceorientation', _oneShotCalib, { once: true });
+            else { calibB = 0; calibG = 0; toast('🎯 ضبط للصفر'); }
+        });
+    } else if (typeof DeviceOrientationEvent !== 'undefined') {
+        window.addEventListener('deviceorientation', _oneShotCalib, { once: true });
+    } else {
+        calibB = 0; calibG = 0; toast('🎯 ضبط للصفر');
+    }
+}
+var lastGyroSend = 0;
+function onGyro(e) {
+    lastB = e.beta  || 0; lastG = e.gamma || 0;
+    if (!gyroActive) return;
+    var dg = lastG - calibG, db = lastB - calibB;
+    document.getElementById('gyro-x').style.width = Math.min(100, Math.max(0, 50+dg)) + '%';
+    document.getElementById('gyro-y').style.width = Math.min(100, Math.max(0, 50+db*.5)) + '%';
+    var now = Date.now(); if (now - lastGyroSend < 40) return; lastGyroSend = now;
+    var dx = Math.abs(dg) > deadZone ? dg*gyroSens*.1 : 0;
+    var dy = Math.abs(db) > deadZone ? db*gyroSens*.1 : 0;
+    var hasMoved = dx !== 0 || dy !== 0;
+    if (hasMoved) socket.emit('move', { dx:Math.round(dx), dy:Math.round(dy) });
+    recordAISample(db, dg, hasMoved);
+}
+window.addEventListener('deviceorientation', onGyro);
+
+// ── AI Gesture Learning ────────────────────────────────────────────────────────
+function toggleAI() {
+    aiActive = !aiActive;
+    var btn = document.getElementById('ai-btn');
+    btn.classList.toggle('on', aiActive);
+    btn.textContent = aiActive ? '🧠 AI: تشغيل' : '🧠 AI: إيقاف';
+    document.getElementById('ai-info').style.display = aiActive ? 'block' : 'none';
+    if (aiActive) updateAIDisplay();
+    toast(aiActive ? '🧠 AI يتعلم' : '🧠 AI متوقف');
+    saveAllSettings();
+}
+function recordAISample(beta, gamma, moved) {
+    if (!aiActive || !moved) return;
+    var drift = Math.sqrt(beta*beta + gamma*gamma);
+    aiData.samples++; aiData.totalDrift += drift;
+    aiData.history.push({ b:Math.round(beta*10)/10, g:Math.round(gamma*10)/10 });
+    if (aiData.history.length > 200) aiData.history.shift();
+    if (aiData.samples > 10) {
+        var avgDrift = aiData.totalDrift / aiData.samples;
+        var newSens = Math.max(4, Math.min(25, Math.round(150/Math.max(avgDrift, 5))));
+        var newDead = Math.max(2, Math.min(10, Math.round(avgDrift * 0.3)));
+        aiData.avgSens = Math.round(aiData.avgSens*.95 + newSens*.05);
+        aiData.avgDead = Math.round(aiData.avgDead*.95 + newDead*.05);
+        gyroSens = aiData.avgSens; deadZone = aiData.avgDead;
+        if (aiData.samples % 20 === 0) { localStorage.setItem('portdesk_ai', JSON.stringify(aiData)); updateAIDisplay(); }
+    }
+}
+function updateAIDisplay() {
+    document.getElementById('ai-sens').textContent = aiData.avgSens;
+    document.getElementById('ai-drift').textContent = aiData.totalDrift > 0 ? Math.round(aiData.totalDrift/Math.max(aiData.samples,1)*10)/10 : '--';
+    document.getElementById('ai-samples').textContent = aiData.samples;
+}
+function resetAI() {
+    aiData = { samples:0, totalDrift:0, avgSens:12, avgDead:4, history:[] };
+    localStorage.removeItem('portdesk_ai'); gyroSens = 12; deadZone = 4; toast('🔄 AI اتمسح');
+}
+
+
+// ── Gaming Controller ──────────────────────────────────────────────────────────
+function getActiveProfile() {
+    if (!gcActive || !gcProfiles[gcActive]) return { keys:{}, type:'ps', layout:[] };
+    return gcProfiles[gcActive];
+}
+
+// ── Palette definitions ────────────────────────────────────────────────────────
+var PALETTE_BTNS = {
+    ps: [
+        {btnId:'cross',   icon:'✕', label:'Cross'},
+        {btnId:'circle',  icon:'○', label:'Circle'},
+        {btnId:'square',  icon:'□', label:'Square'},
+        {btnId:'tri',     icon:'△', label:'Tri'},
+        {btnId:'l1',      icon:'L1',label:'L1'},
+        {btnId:'l2',      icon:'L2',label:'L2'},
+        {btnId:'r1',      icon:'R1',label:'R1'},
+        {btnId:'r2',      icon:'R2',label:'R2'},
+        {btnId:'share',   icon:'⊙', label:'Share'},
+        {btnId:'options', icon:'≡', label:'Opts'},
+        {btnId:'dup',     icon:'▲', label:'D↑',  key:'up'},
+        {btnId:'ddn',     icon:'▼', label:'D↓',  key:'down'},
+        {btnId:'dlt',     icon:'◀', label:'D←',  key:'left'},
+        {btnId:'drt',     icon:'▶', label:'D→',  key:'right'},
+        {btnId:'spc',     icon:'SPC',label:'Space',key:'space'},
+        {btnId:'scrup',   icon:'⬆︎', label:'Scrl↑',key:'scroll_up'},
+        {btnId:'scrdn',   icon:'⬇︎', label:'Scrl↓',key:'scroll_down'},
+        {btnId:'camwheel', icon:'⊙', label:'Cam Wheel', key:'cam_wheel', isWheel:true},
+    ],
+    xbox: [
+        {btnId:'a',    icon:'A',   label:'A'},
+        {btnId:'b',    icon:'B',   label:'B'},
+        {btnId:'x',    icon:'X',   label:'X'},
+        {btnId:'y',    icon:'Y',   label:'Y'},
+        {btnId:'lb',   icon:'LB',  label:'LB'},
+        {btnId:'lt',   icon:'LT',  label:'LT'},
+        {btnId:'rb',   icon:'RB',  label:'RB'},
+        {btnId:'rt',   icon:'RT',  label:'RT'},
+        {btnId:'view', icon:'⧉',   label:'View'},
+        {btnId:'menu', icon:'☰',   label:'Menu'},
+        {btnId:'dup',  icon:'▲',   label:'D↑',  key:'up'},
+        {btnId:'ddn',  icon:'▼',   label:'D↓',  key:'down'},
+        {btnId:'dlt',  icon:'◀',   label:'D←',  key:'left'},
+        {btnId:'drt',  icon:'▶',   label:'D→',  key:'right'},
+        {btnId:'spc',  icon:'SPC', label:'Space',key:'space'},
+        {btnId:'scrup',icon:'⬆︎',  label:'Scrl↑',key:'scroll_up'},
+        {btnId:'scrdn',icon:'⬇︎',  label:'Scrl↓',key:'scroll_down'},
+        {btnId:'camwheel', icon:'⊙', label:'Cam Wheel', key:'cam_wheel', isWheel:true},
+    ]
+};
+
+// ── Key categories for picker ──────────────────────────────────────────────────
+var KEY_CATS = {
+    'أسهم':    ['up','down','left','right'],
+    'F-keys':  ['f1','f2','f3','f4','f5','f6','f7','f8','f9','f10','f11','f12'],
+    'خاص':     ['space','enter','escape','tab','backspace','delete','insert','home','end','pageup','pagedown'],
+    'مودفيير': ['ctrl','alt','shift','winleft'],
+    'ميديا':   ['playpause','nexttrack','prevtrack','volumeup','volumedown','volumemute'],
+    'أرقام':   ['0','1','2','3','4','5','6','7','8','9'],
+    'حروف':    'abcdefghijklmnopqrstuvwxyz'.split(''),
+    'رموز':    ['`','-','=','[',']','\\',';',"'",'/',',','.'],
+};
+
+// ── Default layouts ────────────────────────────────────────────────────────────
+var DEFAULT_LAYOUTS = {
+    ps: [
+        {id:'l1_d',  btnId:'l1',    icon:'L1',label:'L1',    x:8,  y:8,  w:60,h:44,key:'q'},
+        {id:'r1_d',  btnId:'r1',    icon:'R1',label:'R1',    x:72, y:8,  w:60,h:44,key:'e'},
+        {id:'l2_d',  btnId:'l2',    icon:'L2',label:'L2',    x:8,  y:25, w:60,h:44,key:'1'},
+        {id:'r2_d',  btnId:'r2',    icon:'R2',label:'R2',    x:72, y:25, w:60,h:44,key:'r'},
+        {id:'tri_d', btnId:'tri',   icon:'△', label:'△',    x:65, y:40, w:52,h:52,key:'i'},
+        {id:'sq_d',  btnId:'square',icon:'□', label:'□',    x:50, y:56, w:52,h:52,key:'j'},
+        {id:'ci_d',  btnId:'circle',icon:'○', label:'○',    x:80, y:56, w:52,h:52,key:'l'},
+        {id:'cr_d',  btnId:'cross', icon:'✕', label:'✕',    x:65, y:72, w:52,h:52,key:'space'},
+    ],
+    xbox: [
+        {id:'lb_d',  btnId:'lb',icon:'LB',label:'LB', x:8,  y:8,  w:60,h:44,key:'q'},
+        {id:'rb_d',  btnId:'rb',icon:'RB',label:'RB', x:72, y:8,  w:60,h:44,key:'e'},
+        {id:'lt_d',  btnId:'lt',icon:'LT',label:'LT', x:8,  y:25, w:60,h:44,key:'1'},
+        {id:'rt_d',  btnId:'rt',icon:'RT',label:'RT', x:72, y:25, w:60,h:44,key:'r'},
+        {id:'y_d',   btnId:'y', icon:'Y', label:'Y',  x:65, y:40, w:52,h:52,key:'i'},
+        {id:'x_d',   btnId:'x', icon:'X', label:'X',  x:50, y:56, w:52,h:52,key:'j'},
+        {id:'b_d',   btnId:'b', icon:'B', label:'B',  x:80, y:56, w:52,h:52,key:'l'},
+        {id:'a_d',   btnId:'a', icon:'A', label:'A',  x:65, y:72, w:52,h:52,key:'space'},
+    ]
+};
+
+// ── Render layout on gaming panel ──────────────────────────────────────────────
+function _calcFontSize(px) { return Math.max(10, Math.round(px * 0.38)); }
+
+function renderFromLayout() {
+    var container = document.getElementById('gc-main-grid');
+    if (!container) return;
+    container.innerHTML = '';
+    var p      = gcActive ? gcProfiles[gcActive] : null;
+    var layout = (p && p.layout && p.layout.length) ? p.layout : DEFAULT_LAYOUTS[gcType] || DEFAULT_LAYOUTS.ps;
+    layout.forEach(function(item) {
+        if (item.key === 'cam_wheel' || item.isWheel) {
+            _renderWheelPlay(container, item);
+            return;
+        }
+        var el = document.createElement('div');
+        el.className = 'gc-placed-btn';
+        el.style.left     = item.x + '%';
+        el.style.top      = item.y + '%';
+        el.style.width    = item.w + 'px';
+        el.style.height   = item.h + 'px';
+        var fs = _calcFontSize(Math.min(item.w, item.h));
+        el.innerHTML = '<div class="gc-placed-icon" style="font-size:' + fs + 'px">' + item.icon + '</div>' +
+                       '<div class="gc-placed-key">' + (item.key || '—') + '</div>';
+        var k = item.key || '';
+        el.addEventListener('pointerdown', function(ev) {
+            ev.preventDefault();
+            if (!k) return;
+            if      (k === 'scroll_up')   { socket.emit('scroll', {dy: 5}); return; }
+            else if (k === 'scroll_down') { socket.emit('scroll', {dy:-5}); return; }
+            else if (k.includes('+'))     socket.emit('shortcut', {keys: k.split('+')});
+            else                          socket.emit('key_down', {key: mapKeyJS(k)});
+            el.classList.add('pressed'); vibrateAction('click');
+        });
+        el.addEventListener('pointerup', function() {
+            if (!k || k === 'scroll_up' || k === 'scroll_down' || k.includes('+')) { el.classList.remove('pressed'); return; }
+            socket.emit('key_up', {key: mapKeyJS(k)});
+            el.classList.remove('pressed');
+        });
+        el.addEventListener('pointerleave', function() {
+            if (!k || k === 'scroll_up' || k === 'scroll_down' || k.includes('+')) { el.classList.remove('pressed'); return; }
+            socket.emit('key_up', {key: mapKeyJS(k)});
+            el.classList.remove('pressed');
+        });
+        container.appendChild(el);
+    });
+}
+
+function setControllerType(t) {
+    gcType = t;
+    document.querySelectorAll('.gc-type-btn').forEach(function(b){ b.classList.remove('active'); });
+    var btn = document.getElementById('gctype-' + t);
+    if (btn) btn.classList.add('active');
+    if (gcActive && gcProfiles[gcActive]) gcProfiles[gcActive].type = t;
+    renderFromLayout();
+}
+
+// ── Controller Editor ──────────────────────────────────────────────────────────
+var _editorLayout  = [];
+var _editorType    = 'ps';
+var _keyPickerCb   = null;
+var _activeKeyCat  = 'أسهم';
+
+function openCtrlEditor() {
+    if (!gcActive) { toast('❌ اختار بروفايل الأول'); return; }
+    _editorType   = gcProfiles[gcActive].type || gcType;
+    var p         = gcProfiles[gcActive];
+    _editorLayout = (p.layout && p.layout.length)
+        ? p.layout.map(function(b){ return Object.assign({}, b); })
+        : DEFAULT_LAYOUTS[_editorType].map(function(b){ return Object.assign({}, b); });
+
+    document.getElementById('ctrl-editor-profile').textContent = gcActive;
+    document.getElementById('ctrl-editor').classList.add('show');
+    _editorUpdateTypeBtns();
+    _editorRenderPalette();
+    _editorRenderCanvas();
+    if (document.documentElement.requestFullscreen)
+        document.documentElement.requestFullscreen().catch(function(){});
+}
+
+function cancelCtrlEdit() {
+    document.getElementById('ctrl-editor').classList.remove('show');
+    if (document.fullscreenElement) document.exitFullscreen();
+}
+
+function saveCtrlLayout() {
+    if (!gcActive) return;
+    gcProfiles[gcActive].layout = _editorLayout.map(function(b){ return Object.assign({},b); });
+    gcProfiles[gcActive].type   = _editorType;
+    var keys = {};
+    _editorLayout.forEach(function(b){ if (b.key) keys[b.btnId] = b.key; });
+    gcProfiles[gcActive].keys = keys;
+    gcType = _editorType;
+    document.querySelectorAll('.gc-type-btn').forEach(function(b){ b.classList.remove('active'); });
+    var tb = document.getElementById('gctype-' + _editorType);
+    if (tb) tb.classList.add('active');
+    saveGcProfiles();
+    renderFromLayout();
+    document.getElementById('ctrl-editor').classList.remove('show');
+    if (document.fullscreenElement) document.exitFullscreen();
+    toast('✅ تم حفظ التخطيط');
+}
+
+function editorSetType(t) {
+    _editorType = t;
+    _editorUpdateTypeBtns();
+    _editorRenderPalette();
+}
+function _editorUpdateTypeBtns() {
+    ['ps','xbox'].forEach(function(t) {
+        var b = document.getElementById('ctrl-type-' + t + '-btn');
+        if (b) b.classList.toggle('active', t === _editorType);
+    });
+}
+
+function _editorRenderPalette() {
+    var el = document.getElementById('ctrl-palette-btns');
+    if (!el) return;
+    el.innerHTML = '';
+    (PALETTE_BTNS[_editorType] || []).forEach(function(b) {
+        var div = document.createElement('div');
+        div.className  = 'palette-btn';
+        div.textContent = b.icon;
+        div.title = b.label;
+        div.addEventListener('pointerdown', function(ev) {
+            ev.preventDefault();
+            _paletteDragStart(ev, b);
+        });
+        el.appendChild(div);
+    });
+}
+
+function _paletteDragStart(ev, btnDef) {
+    var startX = ev.clientX, startY = ev.clientY;
+    var ghost = null, dragStarted = false, cancelled = false;
+    // Wait a bit to distinguish from palette scroll
+    var holdTimer = setTimeout(function() {
+        if (!cancelled) {
+            dragStarted = true;
+            ghost = document.createElement('div');
+            ghost.className = 'editor-ghost';
+            ghost.style.cssText = 'width:60px;height:60px;font-size:22px;';
+            ghost.textContent = btnDef.icon;
+            document.body.appendChild(ghost);
+            ghost.style.left = startX+'px'; ghost.style.top = startY+'px';
+        }
+    }, 200);
+
+    function onMove(e) {
+        var dx = Math.abs(e.clientX - startX), dy = Math.abs(e.clientY - startY);
+        if (!dragStarted && !cancelled) {
+            // If horizontal movement before hold timer fires → palette scroll
+            if (dx > 12 && dx > dy * 1.5) { cancelled = true; clearTimeout(holdTimer); return; }
+        }
+        if (ghost) { ghost.style.left = e.clientX+'px'; ghost.style.top = e.clientY+'px'; }
+    }
+    function onUp(e) {
+        clearTimeout(holdTimer);
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup',   onUp);
+        if (ghost) { ghost.remove(); ghost = null; }
+        if (!dragStarted || cancelled) return;
+        var canvas = document.getElementById('ctrl-editor-canvas');
+        var rect   = canvas.getBoundingClientRect();
+        if (e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom) return;
+        var nx = ((e.clientX - rect.left) / rect.width)  * 100;
+        var ny = ((e.clientY - rect.top)  / rect.height) * 100;
+        var isWheel = btnDef.isWheel || false;
+        var defSz   = isWheel ? 100 : 56;
+        _editorLayout.push({
+            id:      btnDef.btnId + '_' + Date.now(),
+            btnId:   btnDef.btnId,
+            icon:    btnDef.icon,
+            label:   btnDef.label,
+            isWheel: isWheel,
+            x: Math.round(Math.max(2,Math.min(98,nx))*10)/10,
+            y: Math.round(Math.max(2,Math.min(98,ny))*10)/10,
+            w: defSz, h: defSz,
+            key: btnDef.key || ''
+        });
+        _editorRenderCanvas();
+    }
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup',   onUp);
+}
+
+var _editorSelected = null;
+function _editorDeselect() {
+    if (_editorSelected) { _editorSelected.classList.remove('selected'); _editorSelected = null; }
+}
+
+function _editorRenderCanvas() {
+    var canvas = document.getElementById('ctrl-editor-canvas');
+    if (!canvas) return;
+    canvas.innerHTML = '';
+    _editorSelected = null;
+
+    canvas.addEventListener('pointerdown', function(ev) {
+        if (ev.target === canvas) _editorDeselect();
+    }, {once:false});
+
+    _editorLayout.forEach(function(item) {
+        var el = document.createElement('div');
+        el.className = 'editor-placed' + (item.isWheel ? ' wheel-item' : '');
+        if (item.isWheel) {
+            var sz = Math.max(item.w, item.h);
+            item.w = sz; item.h = sz;
+            el.style.borderRadius = '50%';
+        }
+        el.style.left   = item.x + '%';
+        el.style.top    = item.y + '%';
+        el.style.width  = item.w + 'px';
+        el.style.height = item.h + 'px';
+        var fs = _calcFontSize(Math.min(item.w, item.h));
+        el.innerHTML =
+            '<div class="e-del" data-del="' + item.id + '">✕</div>' +
+            '<span style="font-size:' + fs + 'px;font-weight:700" id="eicon_' + item.id + '">' + item.icon + '</span>' +
+            '<div class="e-key" id="ek_' + item.id + '">' + (item.key||'—') + '</div>' +
+            '<div class="e-resize" data-res="' + item.id + '"></div>';
+
+        el.addEventListener('pointerdown', function(ev) {
+            if (ev.target.dataset.del || ev.target.dataset.res) return;
+            ev.preventDefault();
+            el.setPointerCapture(ev.pointerId);
+            _editorDeselect();
+            el.classList.add('selected');
+            _editorSelected = el;
+            var cvs = document.getElementById('ctrl-editor-canvas');
+            var rect = cvs.getBoundingClientRect();
+            var sx = ev.clientX, sy = ev.clientY;
+            var ox = item.x, oy = item.y, moved = false;
+            var lpT = setTimeout(function() {
+                if (!moved) showKeyPicker(function(key) {
+                    item.key = key;
+                    var kl = document.getElementById('ek_' + item.id);
+                    if (kl) kl.textContent = key;
+                });
+            }, 600);
+            function onM(e2) {
+                if (!moved && Math.abs(e2.clientX-sx)+Math.abs(e2.clientY-sy) > 6) { moved=true; clearTimeout(lpT); }
+                if (moved) {
+                    rect = cvs.getBoundingClientRect();
+                    item.x = Math.round(Math.max(0,Math.min(98, ox+((e2.clientX-sx)/rect.width)*100))*10)/10;
+                    item.y = Math.round(Math.max(0,Math.min(98, oy+((e2.clientY-sy)/rect.height)*100))*10)/10;
+                    el.style.left = item.x + '%'; el.style.top = item.y + '%';
+                }
+            }
+            function onU() { clearTimeout(lpT); el.removeEventListener('pointermove',onM); el.removeEventListener('pointerup',onU); }
+            el.addEventListener('pointermove', onM);
+            el.addEventListener('pointerup',   onU);
+        });
+
+        el.querySelector('.e-del').addEventListener('pointerdown', function(ev) {
+            ev.stopPropagation();
+            _editorLayout = _editorLayout.filter(function(b){ return b.id !== item.id; });
+            _editorRenderCanvas();
+        });
+
+        var rh = el.querySelector('[data-res]');
+        if (rh) rh.addEventListener('pointerdown', function(ev) {
+            ev.preventDefault(); ev.stopPropagation();
+            rh.setPointerCapture(ev.pointerId);
+            var sw=item.w, sh=item.h, sx=ev.clientX, sy=ev.clientY;
+            function onM(e2) {
+                var d = (e2.clientX-sx + e2.clientY-sy) / 2;
+                item.w = Math.max(36, Math.round(sw+d));
+                item.h = Math.max(36, Math.round(sh+d));
+                el.style.width = item.w+'px'; el.style.height = item.h+'px';
+                var nfs = _calcFontSize(Math.min(item.w,item.h));
+                var ic = document.getElementById('eicon_'+item.id);
+                if (ic) ic.style.fontSize = nfs+'px';
+            }
+            function onU() { rh.removeEventListener('pointermove',onM); rh.removeEventListener('pointerup',onU); }
+            rh.addEventListener('pointermove', onM);
+            rh.addEventListener('pointerup',   onU);
+        });
+
+        canvas.appendChild(el);
+    });
+}
+
+// ── Key Picker ─────────────────────────────────────────────────────────────────
+function showKeyPicker(cb) {
+    _keyPickerCb = cb;
+    var catsEl = document.getElementById('key-picker-cats');
+    catsEl.innerHTML = '';
+    Object.keys(KEY_CATS).forEach(function(cat) {
+        var b = document.createElement('div');
+        b.className = 'kp-cat' + (cat===_activeKeyCat?' active':'');
+        b.textContent = cat;
+        b.onclick = function() {
+            _activeKeyCat = cat;
+            document.querySelectorAll('.kp-cat').forEach(function(x){ x.classList.remove('active'); });
+            b.classList.add('active');
+            _renderKeyPickerKeys(cat);
+        };
+        catsEl.appendChild(b);
+    });
+    _renderKeyPickerKeys(_activeKeyCat);
+    document.getElementById('key-picker-overlay').classList.add('show');
+    document.getElementById('key-picker-modal').classList.add('show');
+}
+function _renderKeyPickerKeys(cat) {
+    var el = document.getElementById('key-picker-keys');
+    el.innerHTML = '';
+    (KEY_CATS[cat]||[]).forEach(function(k) {
+        var b = document.createElement('div');
+        b.className = 'kp-key';
+        b.textContent = k;
+        b.onclick = function() {
+            closeKeyPicker();
+            if (_keyPickerCb) { _keyPickerCb(k); _keyPickerCb = null; }
+        };
+        el.appendChild(b);
+    });
+}
+function closeKeyPicker() {
+    document.getElementById('key-picker-overlay').classList.remove('show');
+    document.getElementById('key-picker-modal').classList.remove('show');
+}
+function renderGcProfiles() {
+    var el = document.getElementById('gc-profiles-list'); el.innerHTML = '';
+    Object.keys(gcProfiles).forEach(function(name) {
+        var d = document.createElement('div');
+        d.className = 'gc-profile-item' + (name === gcActive ? ' active' : '');
+        d.textContent = name;
+        d.onclick = function() { selectGamingProfile(name); };
+        d.oncontextmenu = function(e) {
+            e.preventDefault();
+            if (confirm('حذف ' + name + '؟')) {
+                delete gcProfiles[name];
+                if (gcActive === name) gcActive = null;
+                saveGcProfiles(); renderGcProfiles(); setControllerType(gcType);
+            }
+        };
+        el.appendChild(d);
+    });
+}
+function selectGamingProfile(name) {
+    gcActive = name; localStorage.setItem('gc_active', name);
+    var p = gcProfiles[name]; gcType = p.type || 'ps';
+    document.querySelectorAll('.gc-type-btn').forEach(function(b) { b.classList.remove('active'); });
+    document.getElementById('gctype-' + gcType).classList.add('active');
+    renderGcProfiles(); setControllerType(gcType);
+}
+function addGamingProfile() {
+    var name = prompt('اسم البروفايل (مثال: GTA5, Minecraft):'); if (!name) return;
+    gcProfiles[name] = { keys:{}, type:gcType }; gcActive = name;
+    localStorage.setItem('gc_active', name); saveGcProfiles(); renderGcProfiles(); setControllerType(gcType);
+}
+function saveGamingProfile() {
+    if (!gcActive) { toast('❌ اختار بروفايل الأول'); return; }
+    saveGcProfiles(); toast('💾 تم حفظ ' + gcActive);
+}
+function saveGcProfiles() { localStorage.setItem('gc_profiles', JSON.stringify(gcProfiles)); }
+
+
+// ── Gaming Stats ───────────────────────────────────────────────────────────────
+function toggleGamingStats() {
+    statsVisible = !statsVisible;
+    document.getElementById('g-stats').style.display = statsVisible ? 'flex' : 'none';
+    document.getElementById('stats-btn').classList.toggle('active', statsVisible);
+    if (statsVisible) { fetchStats(); statsInterval = setInterval(fetchStats, 2000); }
+    else clearInterval(statsInterval);
+}
+function fetchStats() {
+    fetch('/stats').then(function(r) { return r.json(); }).then(function(d) {
+        document.getElementById('g-cpu').textContent = d.cpu_usage + '%';
+        var t = document.getElementById('g-temp');
+        t.textContent = d.cpu_temp === 'N/A' ? 'N/A' : d.cpu_temp + '°';
+        t.className = 'g-stat-val' + (typeof d.cpu_temp === 'number' && d.cpu_temp > 80 ? ' hot' : '');
+        document.getElementById('g-ram').textContent = d.ram_usage + '%';
+    }).catch(function() {});
+}
+
+// ── Gaming Mode (single function) ─────────────────────────────────────────────
+function toggleGamingMode() {
+    var isGaming = document.body.classList.toggle('gaming-mode');
+    if (isGaming) {
+        if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function(){});
+        switchTab('gaming');
+        toast('🎮 وضع اللعب الكامل — اضغط الزر تاني للخروج');
+    } else {
+        if (document.fullscreenElement) document.exitFullscreen();
+        toast('✅ رجعنا للوضع العادي');
+    }
+}
+
+// ── Stream Config ──────────────────────────────────────────────────────────────
+function applyStreamConfig() {
+    socket.emit('stream_config', {
+        height:        parseInt(document.getElementById('scr-res').value),
+        quality:       parseInt(document.getElementById('scr-quality').value),
+        fps:           parseInt(document.getElementById('scr-fps').value),
+        cursor_color:  document.getElementById('scr-cursor-color').value
+    });
+}
+function toggleScreenSettings() {
+    var el = document.getElementById('scr-settings');
+    el.style.display = el.style.display === 'none' ? 'flex' : 'none';
+}
+
+// ── Data Usage Counter ─────────────────────────────────────────────────────────
+var scrBytesAccum = 0, scrLastTime = Date.now();
+
+// ── Screen Mirroring ───────────────────────────────────────────────────────────
+var screenActive = false;
+var _frameImg = new Image();
+var screenCanvas = document.getElementById('screen-canvas');
+var screenCtx = screenCanvas.getContext('2d');
+
+function startScreen() {
+    screenActive = true;
+    screenCanvas.style.display = 'block';
+    document.getElementById('screen-hint').style.display = 'none';
+    document.getElementById('screen-start-btn').style.display = 'none';
+    document.getElementById('screen-stop-btn').style.display = 'block';
+    fetch('/screen/start', {method:'POST'}).then(function(r){ return r.json(); }).then(function(d){
+        if (d.ok) toast('📡 تشغيل الشاشة...');
+        else { toast('❌ فشل'); stopScreen(); }
+    }).catch(function(e){ toast('❌ ' + e); stopScreen(); });
+}
+function stopScreen() {
+    if (!screenActive) return;
+    screenActive = false;
+    fetch('/screen/stop', {method:'POST'}).catch(function(){});
+    _frameImg.src = '';
+    screenCanvas.style.display = 'none';
+    document.getElementById('screen-hint').style.display = 'block';
+    document.getElementById('screen-start-btn').style.display = 'block';
+    document.getElementById('screen-stop-btn').style.display = 'none';
+    scrBytesAccum = 0; scrLastTime = Date.now();
+    document.getElementById('scr-stat').textContent = '-- KB/s';
+}
+function checkScreenStatus() {
+    fetch('/screen/status').then(function(r){ return r.json(); }).then(function(d) {
+        var msg = 'stream:' + d.streaming + ' thread:' + d.thread_alive + ' mss:' + d.mss;
+        if (d.error) msg += ' ERR:' + d.error;
+        toast(msg);
+        if (d.error) alert('Screen Error:\n' + d.error);
+    }).catch(function(e){ toast('❌ ' + e); });
+}
+function toggleFullscreen() {
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(function(){});
+    else document.exitFullscreen();
+}
+
+// ── Screen Touchpad ────────────────────────────────────────────────────────────
+(function() {
+    var stp = document.getElementById('screen-tp');
+    var slast = null, smoved = false, slp = null;
+    stp.addEventListener('touchstart', function(e) {
+        e.preventDefault(); slast = { x:e.touches[0].clientX, y:e.touches[0].clientY }; smoved = false;
+        if (selectMode) { socket.emit('selector_start', {}); return; }
+        slp = setTimeout(function() { if (!smoved) { socket.emit('click', { type:'right' }); vibrateAction('right_click'); } }, 600);
+    }, { passive:false });
+    stp.addEventListener('touchmove', function(e) {
+        e.preventDefault();
+        var dx = e.touches[0].clientX-slast.x, dy = e.touches[0].clientY-slast.y;
+        if (Math.abs(dx)+Math.abs(dy) > 3) { smoved=true; clearTimeout(slp); }
+        var rdx = Math.round(dx*touchSens*.07), rdy = Math.round(dy*touchSens*.07);
+        if (selectMode) socket.emit('selector_move', {dx:rdx, dy:rdy});
+        else socket.emit('move', {dx:rdx, dy:rdy});
+        slast = { x:e.touches[0].clientX, y:e.touches[0].clientY };
+    }, { passive:false });
+    stp.addEventListener('touchend', function(e) {
+        clearTimeout(slp);
+        if (selectMode) { socket.emit('selector_end', {}); return; }
+        if (!smoved) socket.emit('click', { type:'left' });
+    }, { passive:false });
+})();
+
+// ── Mobile Keyboard ────────────────────────────────────────────────────────────
+var hiddenInput = document.getElementById('hidden-input');
+hiddenInput.addEventListener('input', function(e) {
+    var val = e.target.value;
+    if (val) { socket.emit('type', { text:val }); e.target.value = ''; }
+});
+hiddenInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Backspace') { socket.emit('key', { key:'backspace' }); e.preventDefault(); }
+    else if (e.key === 'Enter') { socket.emit('key', { key:'enter' }); e.preventDefault(); }
+});
+
+document.getElementById('kb-btn').addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    showKbFloat();
+}, { passive: false });
+
+function activateMobileKeyboard() {
+    hiddenInput.value = '';
+    hiddenInput.focus();
+}
+
+// ── On-Screen Keyboard ─────────────────────────────────────────────────────────
+var oskLang = 'en', oskShift = false;
+var oskLayouts = {
+    en: [
+        ['`','1','2','3','4','5','6','7','8','9','0','-','='],
+        ['q','w','e','r','t','y','u','i','o','p','[',']','\\'],
+        ['a','s','d','f','g','h','j','k','l',';',"'"],
+        ['z','x','c','v','b','n','m',',','.','/'],[' ']
+    ],
+    ar: [
+        ['ذ','١','٢','٣','٤','٥','٦','٧','٨','٩','٠','-','='],
+        ['ض','ص','ث','ق','ف','غ','ع','ه','خ','ح','ج','د'],
+        ['ش','س','ي','ب','ل','ا','ت','ن','م','ك','ط'],
+        ['ئ','ء','ؤ','ر','لا','ى','ة','و','ز','ظ'],[' ']
+    ]
+};
+function renderOSK() {
+    var rows = document.getElementById('osk-rows'); rows.innerHTML = '';
+    var layout = oskLayouts[oskLang];
+    layout.forEach(function(row, ri) {
+        var div = document.createElement('div'); div.className = 'osk-row';
+        if (ri === layout.length - 1) {
+            var sp = document.createElement('button'); sp.className = 'osk-key xwide'; sp.textContent = 'مسافة';
+            sp.onclick = function() { oskSend(' '); }; div.appendChild(sp);
+        } else {
+            row.forEach(function(k) {
+                var btn = document.createElement('button'); btn.className = 'osk-key';
+                btn.textContent = oskShift ? k.toUpperCase() : k;
+                btn.onclick = function() { oskSend(oskShift ? k.toUpperCase() : k); };
+                div.appendChild(btn);
+            });
+        }
+        rows.appendChild(div);
+    });
+    var specRow = document.createElement('div'); specRow.className = 'osk-row';
+    ['⌫','⏎','⇧','Esc','Tab'].forEach(function(k) {
+        var btn = document.createElement('button'); btn.className = 'osk-key wide special'; btn.textContent = k;
+        btn.onclick = function() {
+            if (k==='⌫')      socket.emit('key', { key:'backspace' });
+            else if (k==='⏎') socket.emit('key', { key:'enter' });
+            else if (k==='⇧') { oskShift = !oskShift; renderOSK(); }
+            else if (k==='Esc') socket.emit('key', { key:'escape' });
+            else if (k==='Tab') socket.emit('key', { key:'tab' });
+        };
+        specRow.appendChild(btn);
+    });
+    rows.appendChild(specRow);
+    document.getElementById('osk-lang-label').textContent = oskLang.toUpperCase();
+}
+function oskSend(char) {
+    var inp = document.getElementById('osk-input');
+    lastVal = inp.value + char;
+    inp.value = lastVal;
+    socket.emit('type', { text: char });
+}
+function showOSK() {
+    renderOSK();
+    document.getElementById('osk-overlay').classList.add('show');
+    document.getElementById('osk-panel').classList.add('show');
+    var inp = document.getElementById('osk-input');
+    inp.value = ''; lastVal = '';
+}
+function closeOSK() {
+    document.getElementById('osk-overlay').classList.remove('show');
+    document.getElementById('osk-panel').classList.remove('show');
+    var inp = document.getElementById('osk-input');
+    if (inp) { inp.value = ''; lastVal = ''; }
+}
+function toggleOSKLang() { oskLang = oskLang === 'en' ? 'ar' : 'en'; renderOSK(); }
+
+// ── Security UI ────────────────────────────────────────────────────────────────
+function addToWhitelist() {
+    fetch('/security/whitelist/add', { method:'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        toast('✅ تم إضافة ' + d.ip); loadWhitelist();
+    });
+}
+function clearWhitelist() {
+    if (confirm('مسح القايمة البيضا؟ هيحتاج كل جهاز يتضاف من الكوماند تاني')) {
+        fetch('/security/whitelist/clear', { method:'POST' }).then(function() { toast('🗑️ تم المسح'); loadWhitelist(); });
+    }
+}
+function loadWhitelist() {
+    fetch('/security/whitelist').then(function(r) { return r.json(); }).then(function(d) {
+        var el = document.getElementById('whitelist-display'); if (!el) return;
+        el.textContent = (!d.whitelist || !d.whitelist.length) ? 'القايمة فاضية — لازم إضافة الأجهزة من الكوماند' : '✓ ' + d.whitelist.join(' | ');
+    }).catch(function() {});
+}
+
+// ── Export / Import ────────────────────────────────────────────────────────────
+function exportSettings() {
+    saveAllSettings();
+    var blob = new Blob([localStorage.getItem('portdesk_settings')], { type:'application/json' });
+    var url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = 'portdesk_backup.json'; a.click();
+    toast('💾 تم تحميل الباك اب');
+}
+function importSettings(input) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            var data = JSON.parse(e.target.result);
+            localStorage.setItem('portdesk_settings', JSON.stringify(data));
+            loadAllSettings(); toast('✅ تم استيراد الباك اب');
+        } catch(err) { toast('❌ الملف تالف'); }
+    };
+    reader.readAsText(input.files[0]);
+}
+
+// ── File Explorer ──────────────────────────────────────────────────────────────
+var expCurrentPath = '';
+var expSelected    = [];
+var expClipboard   = { paths:[], op:'' };
+
+function expInit() { expGoto(''); }
+
+function _expUpdateSelUI() {
+    var cnt   = document.getElementById('exp-sel-count');
+    var btn   = document.getElementById('exp-dl-btn');
+    var paste = document.getElementById('exp-paste-btn');
+    if (expSelected.length) {
+        cnt.textContent = expSelected.length + ' محدد';
+        cnt.style.display = 'block';
+        btn.style.display = 'block';
+    } else {
+        cnt.style.display = 'none';
+        btn.style.display = 'none';
+    }
+    if (paste) paste.style.display = expClipboard.paths.length ? 'block' : 'none';
+}
+
+function expGoUp() {
+    if (!expCurrentPath) return;
+    var sep  = expCurrentPath.includes('\\') ? '\\' : '/';
+    var parts = expCurrentPath.replace(/[/\\]$/,'').split(sep);
+    parts.pop();
+    var parent = parts.join(sep);
+    if (!parent || parent === expCurrentPath) expGoto('');
+    else expGoto(parent + (parent.endsWith(':') ? sep : ''));
+}
+
+function expRefresh() { expGoto(expCurrentPath); }
+
+function _expRenderBreadcrumb(path) {
+    var bc = document.getElementById('exp-breadcrumb');
+    var parts = [{ label:'🖥️ هذا الجهاز', path:'' }];
+    if (path) {
+        var sep = path.includes('\\') ? '\\' : '/';
+        var segs = path.replace(/[/\\]$/,'').split(sep);
+        var built = '';
+        segs.forEach(function(seg, i) {
+            if (!seg) return;
+            built = i === 0 ? seg + (seg.endsWith(':') ? sep : '') : built + (built.endsWith(sep)?'':sep) + seg;
+            parts.push({ label: seg || sep, path: built });
+        });
+    }
+    bc.innerHTML = parts.map(function(p, i) {
+        var isLast = i === parts.length - 1;
+        return '<span class="exp-bc-item' + (i===0?' exp-bc-root':'') + (isLast?' exp-bc-current':'') + '"' +
+            (!isLast ? ' onclick="expGoto(\'' + p.path.replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')"' : '') + '>' +
+            p.label + '</span>';
+    }).join('');
+}
+
+function expDownload() {
+    if (!expSelected.length) return;
+    if (expSelected.length === 1) {
+        window.location.href = '/explorer/download?path=' + encodeURIComponent(expSelected[0]);
+        return;
+    }
+    fetch('/explorer/download_multi', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({paths: expSelected})
+    }).then(function(r) {
+        return r.blob();
+    }).then(function(blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a'); a.href = url; a.download = 'pcc_files.zip'; a.click();
+        URL.revokeObjectURL(url);
+    });
+    toast('⬇ جاري التحميل...');
+}
+
+function expUpload(files) {
+    if (!files || !files.length) return;
+    if (!expCurrentPath) { toast('❌ افتح مجلد الأول'); return; }
+    var prog   = document.getElementById('exp-upload-progress');
+    var fill   = document.getElementById('exp-upload-fill');
+    var status = document.getElementById('exp-upload-status');
+    prog.style.display = 'block';
+    var i = 0;
+    function next() {
+        if (i >= files.length) { prog.style.display = 'none'; expRefresh(); toast('✅ تم الرفع'); return; }
+        var file = files[i++];
+        status.textContent = file.name;
+        var fd = new FormData();
+        fd.append('files', file);
+        fd.append('path', expCurrentPath);
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', '/explorer/upload');
+        xhr.upload.onprogress = function(e) {
+            if (e.lengthComputable) fill.style.width = Math.round(e.loaded/e.total*100) + '%';
+        };
+        xhr.onload = function() { fill.style.width = '0%'; next(); };
+        xhr.onerror = function() { toast('❌ فشل: ' + file.name); next(); };
+        xhr.send(fd);
+    }
+    next();
+}
+
+function _expIcon(e) {
+    if (e.type === 'dir') return '📁';
+    var ext = e.name.split('.').pop().toLowerCase();
+    var m = {jpg:'🖼',jpeg:'🖼',png:'🖼',gif:'🖼',webp:'🖼',bmp:'🖼',
+             mp4:'🎬',mkv:'🎬',avi:'🎬',mov:'🎬',
+             mp3:'🎵',wav:'🎵',flac:'🎵',m4a:'🎵',
+             pdf:'📄',doc:'📝',docx:'📝',txt:'📝',xls:'📊',xlsx:'📊',ppt:'📋',pptx:'📋',
+             zip:'📦',rar:'📦','7z':'📦',tar:'📦',gz:'📦',
+             exe:'⚙️',msi:'⚙️',bat:'⚙️',ps1:'⚙️',
+             py:'🐍',js:'📜',html:'🌐',css:'🎨',json:'📋',
+             iso:'💿',img:'💿'};
+    return m[ext] || '📄';
+}
+function _expSize(bytes) {
+    if (bytes === 0) return '';
+    if (bytes > 1073741824) return (bytes/1073741824).toFixed(1)+' GB';
+    if (bytes > 1048576)    return (bytes/1048576).toFixed(1)+' MB';
+    if (bytes > 1024)       return (bytes/1024).toFixed(0)+' KB';
+    return bytes+' B';
+}
+
+// ── Clipboard Sync (background) ────────────────────────────────────────────────
+socket.on('clipboard_update', function(d) {
+    if (!d.text) return;
+    navigator.clipboard.writeText(d.text).catch(function(){});
+});
+
+// ── Macro Recorder ─────────────────────────────────────────────────────────────
+var macroSteps = [];
+
+function startMacroRecord() {
+    macroSteps = [];
+    document.getElementById('macro-recording-ui').style.display = 'flex';
+    document.getElementById('macro-rec-btn').style.display = 'none';
+    document.getElementById('macro-steps-preview').textContent = 'لا يوجد خطوات بعد...';
+}
+function cancelMacroRecord() {
+    macroSteps = [];
+    document.getElementById('macro-recording-ui').style.display = 'none';
+    document.getElementById('macro-rec-btn').style.display = 'block';
+}
+function _updateMacroPreview() {
+    var el = document.getElementById('macro-steps-preview');
+    el.textContent = macroSteps.length ? macroSteps.map(function(s,i){
+        if (s.type==='key')      return (i+1)+'. مفتاح: '+s.key;
+        if (s.type==='shortcut') return (i+1)+'. اختصار: '+s.keys.join('+');
+        if (s.type==='type')     return (i+1)+'. نص: "'+s.text+'"';
+        if (s.type==='click')    return (i+1)+'. كليك '+s.btn;
+        if (s.type==='delay')    return (i+1)+'. انتظار '+s.ms+'ms';
+        return (i+1)+'. '+s.type;
+    }).join('\n') : 'لا يوجد خطوات بعد...';
+}
+function macroAddClick(btn) {
+    macroSteps.push({type:'click', btn:btn, delay:0.1});
+    _updateMacroPreview(); toast('➕ كليك ' + btn);
+}
+function macroAddKey() {
+    var k = prompt('اسم المفتاح (مثال: enter, space, f5):'); if (!k) return;
+    macroSteps.push({type:'key', key:k.toLowerCase(), delay:0.1});
+    _updateMacroPreview(); toast('➕ مفتاح: ' + k);
+}
+function macroAddType() {
+    var t = prompt('النص:'); if (!t) return;
+    macroSteps.push({type:'type', text:t, delay:0.05});
+    _updateMacroPreview(); toast('➕ نص');
+}
+function macroAddDelay() {
+    var ms = parseInt(prompt('وقت الانتظار (ms):', '500')); if (isNaN(ms)) return;
+    macroSteps.push({type:'delay', ms:ms, delay:ms/1000});
+    _updateMacroPreview(); toast('➕ انتظار ' + ms + 'ms');
+}
+function saveMacro() {
+    var name = document.getElementById('macro-name-input').value.trim();
+    if (!name) { toast('❌ أدخل اسم'); return; }
+    if (!macroSteps.length) { toast('❌ أضف خطوة على الأقل'); return; }
+    fetch('/macros/save', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name, steps:macroSteps})})
+        .then(function(){ cancelMacroRecord(); loadMacros(); toast('✅ تم حفظ: ' + name); });
+}
+function loadMacros() {
+    fetch('/macros/list').then(function(r){ return r.json(); }).then(function(list) {
+        var el = document.getElementById('macros-list');
+        if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">لا يوجد ماكروهات</div>'; return; }
+        el.innerHTML = list.map(function(name) {
+            return '<div class="macro-item">' +
+                '<div class="macro-item-name">⚡ ' + name + '</div>' +
+                '<button class="file-item-btn" onclick="runMacro(\'' + name.replace(/'/g,"\\'") + '\')">▶ تشغيل</button>' +
+                '<button class="file-item-btn red" onclick="deleteMacro(\'' + name.replace(/'/g,"\\'") + '\')">🗑</button>' +
+                '</div>';
+        }).join('');
+    });
+}
+function runMacro(name) {
+    fetch('/macros/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name})})
+        .then(function(){ toast('▶ تشغيل: ' + name); });
+}
+function deleteMacro(name) {
+    if (!confirm('حذف ' + name + '؟')) return;
+    fetch('/macros/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name})})
+        .then(function(){ loadMacros(); toast('🗑 تم الحذف'); });
+}
+
+// ── Multiple Monitors ──────────────────────────────────────────────────────────
+function loadMonitors() {
+    fetch('/monitors/list').then(function(r){ return r.json(); }).then(function(mons) {
+        var sel = document.getElementById('scr-monitor');
+        sel.innerHTML = '';
+        if (!mons.length) { sel.innerHTML = '<option value="1">شاشة 1</option>'; return; }
+        mons.forEach(function(m) {
+            var opt = document.createElement('option');
+            opt.value = m.index;
+            opt.textContent = 'شاشة ' + m.index + ' (' + m.w + '×' + m.h + ')';
+            sel.appendChild(opt);
+        });
+    });
+}
+function setMonitor() {
+    var idx = parseInt(document.getElementById('scr-monitor').value);
+    socket.emit('set_monitor', {index: idx});
+    toast('🖥️ شاشة ' + idx);
+}
+
+// ── Connection Alert ───────────────────────────────────────────────────────────
+var _connAlertTimer = null;
+socket.on('disconnect', function() {
+    var el = document.getElementById('conn-alert');
+    el.textContent = '🔴 انقطع الاتصال بالسيرفر...';
+    el.className = 'lost';
+});
+socket.on('reconnect', function() {
+    var el = document.getElementById('conn-alert');
+    el.textContent = '🟢 تم استعادة الاتصال';
+    el.className = 'back';
+    clearTimeout(_connAlertTimer);
+    _connAlertTimer = setTimeout(function() { el.className = ''; el.style.display = 'none'; }, 3000);
+});
+socket.on('connect', function() {
+    var el = document.getElementById('conn-alert');
+    if (el.className === 'lost') {
+        el.textContent = '🟢 تم استعادة الاتصال';
+        el.className = 'back';
+        clearTimeout(_connAlertTimer);
+        _connAlertTimer = setTimeout(function() { el.className = ''; }, 3000);
+    }
+});
+
+// ── Theme ──────────────────────────────────────────────────────────────────────
+var lightTheme = localStorage.getItem('pcc_theme') === 'light';
+function applyTheme() {
+    document.body.classList.toggle('light-theme', lightTheme);
+    document.getElementById('tgl-theme').classList.toggle('on', lightTheme);
+    localStorage.setItem('pcc_theme', lightTheme ? 'light' : 'dark');
+}
+function toggleTheme() { lightTheme = !lightTheme; applyTheme(); }
+
+// ── Language ───────────────────────────────────────────────────────────────────
+var LANG = {
+    ar: {
+        touch:'لمس', keys:'اختصارات', pres:'عرض', gaming:'Gaming', screen:'شاشة',
+        settings:'إعدادات', explorer:'Explorer', macros:'Macros', tasks:'Tasks',
+        sched:'Sched', log:'Log', connect:'متصل', disconnect:'منقطع',
+        mouse_sens:'حساسية اللمس', gyro_sens:'حساسية الجيرو', dead_zone:'Dead Zone',
+        scroll_speed:'سرعة السكرول', haptic:'Haptic', sound:'Sound',
+        auto_sleep:'تفعيل', sleep_dur:'مدة (ثانية)', set_pin:'تعيين PIN',
+        clear_pin:'إلغاء PIN', export:'تصدير', import:'استيراد',
+        add_whitelist:'إضافة هذا الجهاز للقايمة البيضا', clear_whitelist:'مسح القايمة البيضا',
+        ai_reset:'إعادة تعلم AI', day_night:'وضع النهار/الليل', lang:'اللغة',
+        remote_audio:'Remote Audio', mic:'ميكروفون الموبايل',
+        left_click:'يسار', right_click:'يمين', double_click:'دبل',
+        gyro_off:'جيرو: إيقاف', gyro_on:'جيرو: تشغيل',
+        ai_off:'AI: إيقاف', ai_on:'AI: تشغيل',
+        select_mode:'وضع التحديد — حرك مع الضغط', normal_mode:'وضع عادي',
+        tasks_running:'العمليات الجارية', refresh:'تحديث', auto:'تلقائي', stop:'إيقاف',
+        whitelist_empty:'القايمة فاضية — لازم إضافة الأجهزة من الكوماند',
+        copy:'نسخ', paste:'لصق', undo:'تراجع', redo:'إعادة', select_all:'تحديد الكل',
+        save:'حفظ', cut:'قص', search:'بحث', switch_win:'تبديل', lock:'قفل',
+        close_win:'إغلاق', explorer_sc:'مستكشف',
+        next_track:'التالي', prev_track:'السابق', mute:'كتم', vol_up:'صوت +', vol_dn:'صوت -'
+    },
+    en: {
+        touch:'Touch', keys:'Shortcuts', pres:'Present', gaming:'Gaming', screen:'Screen',
+        settings:'Settings', explorer:'Explorer', macros:'Macros', tasks:'Tasks',
+        sched:'Sched', log:'Log', connect:'Connected', disconnect:'Disconnected',
+        mouse_sens:'Touch Sensitivity', gyro_sens:'Gyro Sensitivity', dead_zone:'Dead Zone',
+        scroll_speed:'Scroll Speed', haptic:'Haptic', sound:'Sound',
+        auto_sleep:'Enable', sleep_dur:'Duration (sec)', set_pin:'Set PIN',
+        clear_pin:'Clear PIN', export:'Export', import:'Import',
+        add_whitelist:'Add this device to whitelist', clear_whitelist:'Clear whitelist',
+        ai_reset:'Reset AI Learning', day_night:'Day/Night Mode', lang:'Language',
+        remote_audio:'Remote Audio', mic:'Mobile Microphone',
+        left_click:'Left', right_click:'Right', double_click:'Double',
+        gyro_off:'Gyro: Off', gyro_on:'Gyro: On',
+        ai_off:'AI: Off', ai_on:'AI: On',
+        select_mode:'Select Mode — drag to select', normal_mode:'Normal Mode',
+        tasks_running:'Running Processes', refresh:'Refresh', auto:'Auto', stop:'Stop',
+        whitelist_empty:'List empty — devices must be added from CMD',
+        copy:'Copy', paste:'Paste', undo:'Undo', redo:'Redo', select_all:'Select All',
+        save:'Save', cut:'Cut', search:'Search', switch_win:'Switch', lock:'Lock',
+        close_win:'Close', explorer_sc:'Explorer',
+        next_track:'Next', prev_track:'Prev', mute:'Mute', vol_up:'Vol +', vol_dn:'Vol -'
+    }
+};
+var currentLang = localStorage.getItem('pcc_lang') || 'ar';
+
+var I18N_EN = {"tab_touch": "Touch", "tab_keys": "Shortcuts", "tab_pres": "Present", "gaming": "Gaming", "tab_screen": "Screen", "tab_settings": "Settings", "tp_hint": "Touch Area", "tp_scroll_hint": "Two fingers = scroll", "btn_left": "Left", "btn_right": "Right", "btn_double": "Double", "sc_copy": "Copy", "sc_paste": "Paste", "sc_undo": "Undo", "sc_redo": "Redo", "sc_selall": "Select All", "sc_save": "Save", "sc_cut": "Cut", "sc_search": "Search", "sc_switch": "Switch", "sc_lock": "Lock", "sc_close": "Close", "sc_explorer": "Explorer", "sc_next": "Next", "sc_prev": "Prev", "sc_mute": "Mute", "sc_volup": "Vol +", "sc_voldn": "Vol -", "pres_start": "Start (F5)", "pres_up": "Up", "pres_down": "Down", "pres_black": "Black (B)", "pres_white": "White (W)", "pres_end": "End (Esc)", "gc_new": "+ New", "gc_fullmode": "🎮 Full Mode", "scr_hint": "Press Start to view screen", "scr_start": "▶ Start", "scr_stop": "⏹ Stop", "scr_res": "📐 Resolution", "scr_quality": "🎨 Quality", "scr_monitor": "🖥️ Monitor", "scr_cursor": "🎨 Cursor Color", "scr_type": "⌨️ Type", "set_tsens": "⚡ Touch Sensitivity", "set_gsens": "🌀 Gyro Sensitivity", "set_scroll": "📜 Scroll Speed", "set_sleep_en": "💤 Enable", "set_sleep_dur": "⏱️ Duration (sec)", "set_pin": "🔐 Set PIN", "set_pin_clr": "🔓 Clear PIN", "set_export": "💾 Export", "set_import": "📥 Import", "set_wl_add": "📱 Add this device to whitelist", "set_wl_clr": "🗑️ Clear whitelist", "set_ai_reset": "🧠 Reset AI Learning", "set_theme": "🌗 Day/Night Mode", "set_lang": "🌐 Language", "set_audio": "🔊 Remote Audio", "set_mic": "🎙️ Mobile Microphone", "streaming": "Streaming", "btn_set": "Set", "btn_cancel": "Cancel", "btn_export": "Export", "btn_import": "Import", "btn_add": "Add", "btn_clear": "Clear", "btn_reset": "Reset", "btn_start": "Start", "pin_prompt": "Enter PIN to continue", "sleep_msg": "Tap to wake", "gaming_mode_btn": "🎮 Gaming Mode", "exit_gaming": "Exit Gaming Mode ✖", "tasks_title": "Running Processes", "tasks_auto": "▶ Auto", "sched_title": "⏰ Scheduled Tasks", "sched_macro_placeholder": "Select macro...", "btn_add2": "+ Add", "log_title": "Log", "macros_title": "⚡ Macros", "macro_rec": "⏺ Record", "keypicker_title": "🎹 Pick a Key", "exp_root": "🖥️ This PC", "copy": "Copy", "paste": "Paste", "undo": "Undo", "redo": "Redo", "save": "Save", "cut": "Cut", "search": "Search", "select_all": "Select All", "switch_win": "Switch", "lock": "Lock", "close_win": "Close", "explorer_sc": "Explorer", "next_track": "Next", "prev_track": "Prev", "mute": "Mute", "vol_up": "Vol +", "vol_dn": "Vol -"};
+
+var I18N_AR = {
+    'tab_touch':'لمس','tab_keys':'اختصارات','tab_pres':'عرض','gaming':'Gaming','tab_screen':'شاشة','tab_settings':'إعدادات',
+    'tp_hint':'المنطقة الحساسة','tp_scroll_hint':'إصبعين = سكرول',
+    'btn_left':'يسار','btn_right':'يمين','btn_double':'دبل',
+    'sc_copy':'نسخ','sc_paste':'لصق','sc_undo':'تراجع','sc_redo':'إعادة',
+    'sc_selall':'تحديد الكل','sc_save':'حفظ','sc_cut':'قص','sc_search':'بحث',
+    'sc_switch':'تبديل','sc_lock':'قفل','sc_close':'إغلاق','sc_explorer':'مستكشف',
+    'sc_next':'التالي','sc_prev':'السابق','sc_mute':'كتم','sc_volup':'صوت +','sc_voldn':'صوت -',
+    'pres_start':'بدء (F5)','pres_up':'فوق','pres_down':'تحت',
+    'pres_black':'أسود (B)','pres_white':'أبيض (W)','pres_end':'إنهاء (Esc)',
+    'gc_new':'+ جديد','gc_fullmode':'🎮 وضع كامل',
+    'scr_hint':'اضغط تشغيل لعرض شاشة الكمبيوتر',
+    'scr_start':'▶ تشغيل','scr_stop':'⏹ إيقاف',
+    'scr_res':'📐 دقة','scr_quality':'🎨 جودة','scr_monitor':'🖥️ شاشة','scr_cursor':'🎨 لون المؤشر',
+    'scr_type':'⌨️ كتابة',
+    'set_tsens':'⚡ حساسية اللمس','set_gsens':'🌀 حساسية الجيرو',
+    'set_scroll':'📜 سرعة السكرول','set_sleep_en':'💤 تفعيل','set_sleep_dur':'⏱️ مدة (ثانية)',
+    'set_pin':'🔐 تعيين PIN','set_pin_clr':'🔓 إلغاء PIN',
+    'set_export':'💾 تصدير','set_import':'📥 استيراد',
+    'set_wl_add':'📱 إضافة هذا الجهاز للقايمة البيضا','set_wl_clr':'🗑️ مسح القايمة البيضا',
+    'set_ai_reset':'🧠 إعادة تعلم AI','set_theme':'🌗 وضع النهار/الليل','set_lang':'🌐 اللغة',
+    'set_audio':'🔊 Remote Audio','set_mic':'🎙️ ميكروفون الموبايل','streaming':'جاري البث',
+    'btn_set':'تعيين','btn_cancel':'إلغاء','btn_export':'تصدير','btn_import':'استيراد',
+    'btn_add':'إضافة','btn_clear':'مسح','btn_reset':'إعادة','btn_start':'تشغيل',
+    'pin_prompt':'أدخل PIN للدخول','sleep_msg':'اضغط لإيقاظ الجهاز',
+    'gaming_mode_btn':'🎮 وضع اللعب','exit_gaming':'خروج من وضع اللعب ✖',
+    'tasks_title':'العمليات الجارية','tasks_auto':'▶ تلقائي',
+    'sched_title':'⏰ المهام المجدولة','sched_macro_placeholder':'اختار ماكرو...',
+    'btn_add2':'+ إضافة','log_title':'لوج',
+    'macros_title':'⚡ الماكروهات','macro_rec':'⏺ تسجيل',
+    'keypicker_title':'🎹 اختار مفتاح','exp_root':'🖥️ هذا الجهاز'
+};
+function setLang(lang) {
+    currentLang = lang;
+    localStorage.setItem('pcc_lang', lang);
+    document.getElementById('lang-select').value = lang;
+    document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    document.documentElement.lang = lang;
+    var L = lang === 'en' ? I18N_EN : I18N_AR;
+
+    // Translate all data-i18n elements
+    document.querySelectorAll('[data-i18n]').forEach(function(el) {
+        var key = el.getAttribute('data-i18n');
+        if (L[key] !== undefined) el.textContent = L[key];
+    });
+
+    // Tabs (have icons, need special handling)
+    var tabKeys = ['tab_touch','tab_keys','tab_pres','gaming','tab_screen','tab_settings','explorer','macros','tasks','sched','log'];
+    document.querySelectorAll('.tab').forEach(function(t, i) {
+        var key = tabKeys[i];
+        if (!key) return;
+        var icon = t.querySelector('.tab-icon');
+        var iconHtml = icon ? icon.outerHTML : '';
+        var txt = L[key] || key;
+        t.innerHTML = iconHtml + txt;
+    });
+
+    // Gyro/AI buttons (dynamic text)
+    var gyroBtn = document.getElementById('gyro-btn');
+    if (gyroBtn) gyroBtn.textContent = '🌀 ' + (gyroActive ? (lang==='en'?'Gyro: On':'جيرو: تشغيل') : (lang==='en'?'Gyro: Off':'جيرو: إيقاف'));
+    var aiBtn = document.getElementById('ai-btn');
+    if (aiBtn) aiBtn.textContent = '🧠 ' + (aiActive ? (lang==='en'?'AI: On':'AI: تشغيل') : (lang==='en'?'AI: Off':'AI: إيقاف'));
+
+    var wl = document.getElementById('whitelist-display');
+    if (wl && wl.textContent.indexOf('✓') === -1) wl.textContent = lang==='en' ? 'List empty — add devices from CMD' : 'القايمة فاضية — لازم إضافة الأجهزة من الكوماند';
+}
+
+// ── Mouse Select Mode ──────────────────────────────────────────────────────────
+function toggleSelectMode() {
+    selectMode = !selectMode;
+    if (!selectMode) socket.emit('key_up', { key: 'shift' });
+    var btn = document.getElementById('select-mode-btn');
+    var tp  = document.getElementById('touchpad');
+    btn.style.background = selectMode ? 'var(--accent)22' : '';
+    btn.style.borderColor = selectMode ? 'var(--accent)' : '';
+    btn.style.color = selectMode ? 'var(--accent)' : '';
+    var badge = document.getElementById('select-badge');
+    if (selectMode && !badge) {
+        badge = document.createElement('div');
+        badge.id = 'select-badge';
+        badge.className = 'select-mode-badge';
+        badge.textContent = 'SELECT MODE';
+        tp.appendChild(badge);
+    } else if (!selectMode && badge) {
+        badge.remove();
+    }
+    toast(selectMode ? '🔲 وضع التحديد — حرك مع الضغط' : '🖱 وضع عادي');
+}
+
+// ── Remote Audio ───────────────────────────────────────────────────────────────
+var audioActive = false;
+var _audioCtxStream = null;
+
+socket.on('audio_chunk', function(d) {
+    if (!audioActive) return;
+    if (!_audioCtxStream) _audioCtxStream = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 22050 });
+    var binary = atob(d.data);
+    var numSamples = Math.floor(binary.length / 2);
+    if (!numSamples) return;
+    var buf = _audioCtxStream.createBuffer(1, numSamples, 22050);
+    var ch  = buf.getChannelData(0);
+    for (var i = 0; i < numSamples; i++) {
+        var lo = binary.charCodeAt(i * 2);
+        var hi = binary.charCodeAt(i * 2 + 1);
+        var s  = (hi << 8) | lo;
+        ch[i]  = (s > 32767 ? s - 65536 : s) / 32768.0;
+    }
+    var src = _audioCtxStream.createBufferSource();
+    src.buffer = buf;
+    src.connect(_audioCtxStream.destination);
+    src.start();
+});
+
+function toggleRemoteAudio() {
+    audioActive = !audioActive;
+    document.getElementById('tgl-audio').classList.toggle('on', audioActive);
+    document.getElementById('audio-status-row').style.display = audioActive ? 'flex' : 'none';
+    if (audioActive) {
+        if (!_audioCtxStream) _audioCtxStream = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 22050 });
+        if (_audioCtxStream.state === 'suspended') _audioCtxStream.resume();
+        fetch('/audio/start', {method:'POST'}).then(function(r){return r.json();}).then(function(d){
+            if (d.ok) toast('🔊 Remote Audio شغال');
+            else toast('❌ فشل تشغيل الصوت');
+        }).catch(function(){ toast('❌ خطأ'); });
+    } else {
+        fetch('/audio/stop', {method:'POST'});
+        toast('🔇 Remote Audio متوقف');
+    }
+}
+
+// ── Brute Force Protection ─────────────────────────────────────────────────────
+function reportPinResult(success) {
+    fetch('/auth/pin_check', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ok: success})
+    }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.error) {
+            document.getElementById('pin-error').textContent = d.error;
+            pinBuffer = [];
+            for (var i = 0; i < 4; i++) document.getElementById('pd' + i).classList.remove('filled');
+        }
+    }).catch(function(){});
+}
+
+// ── Task Manager ───────────────────────────────────────────────────────────────
+var tasksAutoRefresh = false;
+var tasksInterval = null;
+
+function loadTasks() {
+    fetch('/tasks/list').then(function(r){ return r.json(); }).then(function(procs) {
+        if (procs.error) { document.getElementById('task-list').innerHTML = '<div class="exp-loading" style="color:var(--accent2)">' + procs.error + '</div>'; return; }
+        var el = document.getElementById('task-list');
+        if (!procs.length) { el.innerHTML = '<div class="exp-loading">لا يوجد عمليات</div>'; return; }
+        el.innerHTML = procs.map(function(p) {
+            var mem = p.mem > 1048576 ? (p.mem/1048576).toFixed(0)+' MB' : (p.mem/1024).toFixed(0)+' KB';
+            var cpuClass = p.cpu > 50 ? ' hot' : '';
+            return '<div class="task-item">' +
+                '<div class="task-name" title="' + p.name + '">' + p.name + '</div>' +
+                '<div class="task-cpu' + cpuClass + '">' + p.cpu + '%</div>' +
+                '<div class="task-mem">' + mem + '</div>' +
+                '<button class="task-kill" onclick="killTask(' + p.pid + ',\'' + p.name.replace(/'/g,"\\'") + '\')">⛔</button>' +
+                '</div>';
+        }).join('');
+    }).catch(function(){ document.getElementById('task-list').innerHTML = '<div class="exp-loading" style="color:var(--accent2)">خطأ في التحميل</div>'; });
+}
+function killTask(pid, name) {
+    if (!confirm('إيقاف "' + name + '"؟')) return;
+    fetch('/tasks/kill', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pid:pid}) })
+        .then(function(){ toast('⛔ تم إيقاف: ' + name); loadTasks(); });
+}
+function toggleTasksAuto() {
+    tasksAutoRefresh = !tasksAutoRefresh;
+    var btn = document.getElementById('tasks-auto-btn');
+    btn.textContent = tasksAutoRefresh ? '⏸ إيقاف' : '▶ تلقائي';
+    btn.classList.toggle('accent', tasksAutoRefresh);
+    if (tasksAutoRefresh) { loadTasks(); tasksInterval = setInterval(loadTasks, 3000); }
+    else clearInterval(tasksInterval);
+}
+
+// ── Scheduled Tasks ────────────────────────────────────────────────────────────
+function loadScheduled() {
+    fetch('/scheduled/list').then(function(r){ return r.json(); }).then(function(tasks) {
+        var el = document.getElementById('sched-list');
+        // Update macro select
+        fetch('/macros/list').then(function(r){ return r.json(); }).then(function(list) {
+            var sel = document.getElementById('sched-macro');
+            var cur = sel.value;
+            sel.innerHTML = '<option value="">اختار ماكرو...</option>' +
+                list.map(function(m){ return '<option value="' + m + '">' + m + '</option>'; }).join('');
+            sel.value = cur;
+        });
+        if (!tasks.length) { el.innerHTML = '<div class="exp-loading">لا يوجد مهام مجدولة</div>'; return; }
+        el.innerHTML = tasks.map(function(t) {
+            return '<div class="sched-item">' +
+                '<div class="sched-time">' + t.time + '</div>' +
+                '<div style="flex:1"><div class="sched-name">' + t.name + '</div><div class="sched-macro">⚡ ' + t.macro + '</div></div>' +
+                '<div class="toggle' + (t.enabled?' on':'') + '" onclick="toggleScheduled(\'' + t.id + '\')"></div>' +
+                '<button class="task-kill" onclick="deleteScheduled(\'' + t.id + '\')">🗑</button>' +
+                '</div>';
+        }).join('');
+    });
+}
+function addScheduled() {
+    var time  = document.getElementById('sched-time').value;
+    var name  = document.getElementById('sched-name').value.trim();
+    var macro = document.getElementById('sched-macro').value;
+    if (!time || !name || !macro) { toast('❌ أكمل كل الحقول'); return; }
+    fetch('/scheduled/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({time,name,macro}) })
+        .then(function(){ loadScheduled(); toast('✅ تم الإضافة'); });
+}
+function toggleScheduled(id) {
+    fetch('/scheduled/toggle', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) })
+        .then(function(){ loadScheduled(); });
+}
+function deleteScheduled(id) {
+    fetch('/scheduled/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) })
+        .then(function(){ loadScheduled(); toast('🗑 تم الحذف'); });
+}
+
+// ── Event Log ──────────────────────────────────────────────────────────────────
+function loadLog() {
+    fetch('/log/list').then(function(r){ return r.json(); }).then(function(events) {
+        var el = document.getElementById('log-list');
+        if (!events.length) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;font-size:11px">لا يوجد أحداث</div>'; return; }
+        el.innerHTML = events.map(function(e) {
+            return '<div class="log-item ' + (e.type||'') + '">' +
+                '<span class="log-time">' + (e.t||'').split(' ')[1] + '</span>' +
+                '<span class="log-type">' + (e.type||'') + '</span>' +
+                '<span class="log-detail">' + (e.ip||'') + (e.detail ? ' · '+e.detail : '') + '</span>' +
+                '</div>';
+        }).join('');
+    });
+}
+function clearLog() {
+    if (!confirm('مسح السجل؟')) return;
+    fetch('/log/clear', {method:'POST'}).then(function(){ loadLog(); toast('🗑 تم مسح السجل'); });
+}
+
+// ── Frame Skip (CPU guard) ─────────────────────────────────────────────────────
+var _lastCpuCheck = 0, _cpuHigh = false;
+socket.on('stats_push', function(d) {
+    if (d.cpu_usage > 95 && !_cpuHigh) {
+        _cpuHigh = true;
+        toast('⚠ CPU مرتفع — تخطي frames مفعّل');
+    } else if (d.cpu_usage < 80) {
+        _cpuHigh = false;
+    }
+});
+var _frameSkipCounter = 0;
+_frameImg.onload = function() {
+    if (!screenActive) return;
+    screenCanvas.width  = _frameImg.naturalWidth;
+    screenCanvas.height = _frameImg.naturalHeight;
+    screenCanvas.style.height = 'auto';
+    screenCtx.drawImage(_frameImg, 0, 0);
+};
+socket.on('frame', function(d) {
+    if (!screenActive) return;
+    if (_cpuHigh && _frameSkipCounter++ % 3 !== 0) return;
+    if (!_cpuHigh) _frameSkipCounter = 0;
+
+    scrBytesAccum += d.size || Math.round(d.data.length * 0.75);
+    var now = Date.now();
+    if (now - scrLastTime >= 1000) {
+        var kbps = (scrBytesAccum / 1024).toFixed(1);
+        var label = scrBytesAccum >= 1024*100 ? (scrBytesAccum/1048576).toFixed(2)+' MB/s' : kbps+' KB/s';
+        document.getElementById('scr-stat').textContent = label;
+        scrBytesAccum = 0; scrLastTime = now;
+    }
+    _frameImg.src = 'data:image/jpeg;base64,' + d.data;
+});
+
+// ── Microphone ─────────────────────────────────────────────────────────────────
+var micActive = false, micStream = null, micProcessor = null, micCtx = null;
+
+function toggleMicFromSettings() {
+    var btn = document.getElementById('mic-settings-btn');
+    var statusRow = document.getElementById('mic-settings-status');
+    if (!micActive) {
+        startMic();
+        btn.textContent = 'إيقاف';
+        statusRow.style.display = 'flex';
+    } else {
+        stopMic();
+        btn.textContent = 'تشغيل';
+        statusRow.style.display = 'none';
+    }
+}
+
+function startMic() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast('❌ يحتاج HTTPS أو USB (localhost)'); return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: { sampleRate:44100, channelCount:1, echoCancellation:false, noiseSuppression:false } })
+    .then(function(stream) {
+        micStream    = stream;
+        micCtx       = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+        var src      = micCtx.createMediaStreamSource(stream);
+        micProcessor = micCtx.createScriptProcessor(2048, 1, 1);
+
+        micProcessor.onaudioprocess = function(e) {
+            var f32  = e.inputBuffer.getChannelData(0);
+            var i16  = new Int16Array(f32.length);
+            var peak = 0;
+            for (var i = 0; i < f32.length; i++) {
+                i16[i] = Math.max(-32768, Math.min(32767, Math.round(f32[i] * 32767)));
+                if (Math.abs(f32[i]) > peak) peak = Math.abs(f32[i]);
+            }
+            var volFill = document.getElementById('mic-vol-fill');
+            if (volFill) volFill.style.width = Math.round(peak * 100) + '%';
+            var bytes = new Uint8Array(i16.buffer);
+            var chunk = 8192, parts = [];
+            for (var j = 0; j < bytes.length; j += chunk)
+                parts.push(String.fromCharCode.apply(null, bytes.subarray(j, j + chunk)));
+            socket.emit('mic_chunk', { data: btoa(parts.join('')) });
+        };
+
+        src.connect(micProcessor);
+        micProcessor.connect(micCtx.destination);
+        socket.emit('mic_start', {});
+        micActive = true;
+        var st = document.getElementById('mic-status');
+        if (st) st.textContent = '🔴 جاري البث...';
+        toast('🎙️ الميكروفون شغال');
+    })
+    .catch(function(e) { toast('❌ ' + e.message); });
+}
+
+function stopMic() {
+    if (micProcessor) { micProcessor.disconnect(); micProcessor = null; }
+    if (micCtx)       { micCtx.close(); micCtx = null; }
+    if (micStream)    { micStream.getTracks().forEach(function(t){ t.stop(); }); micStream = null; }
+    socket.emit('mic_stop', {});
+    micActive = false;
+    var volFill = document.getElementById('mic-vol-fill');
+    if (volFill) volFill.style.width = '0%';
+    var st = document.getElementById('mic-status');
+    if (st) st.textContent = '';
+    toast('🎙️ تم إيقاف الميكروفون');
+}
+
+// ── Explorer Sort ──────────────────────────────────────────────────────────────
+var expSortBy  = 'name';
+var expSortAsc = true;
+
+function expSetSort(by) {
+    if (expSortBy === by) expSortAsc = !expSortAsc;
+    else { expSortBy = by; expSortAsc = true; }
+    document.querySelectorAll('.exp-sort-btn').forEach(function(b){ b.classList.remove('active'); });
+    var btn = document.getElementById('sort-' + by);
+    if (btn) { btn.classList.add('active'); btn.textContent = {name:'الاسم',date:'التاريخ',size:'الحجم',type:'النوع'}[by] + (expSortAsc?' ↑':' ↓'); }
+    expRefresh();
+}
+
+function _expSortEntries(entries) {
+    return entries.slice().sort(function(a, b) {
+        if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+        var v;
+        if      (expSortBy === 'name') v = a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+        else if (expSortBy === 'date') v = a.modified - b.modified;
+        else if (expSortBy === 'size') v = a.size - b.size;
+        else if (expSortBy === 'type') {
+            var ea = a.name.split('.').pop(), eb = b.name.split('.').pop();
+            v = ea < eb ? -1 : 1;
+        }
+        return expSortAsc ? v : -v;
+    });
+}
+
+// ── Explorer Create ────────────────────────────────────────────────────────────
+function expMkdir() {
+    if (!expCurrentPath) { toast('❌ افتح مجلد الأول'); return; }
+    var name = prompt('اسم المجلد الجديد:'); if (!name) return;
+    fetch('/explorer/mkdir', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:expCurrentPath, name:name}) })
+    .then(function(r){ return r.json(); }).then(function(d){
+        if (d.ok) { expRefresh(); toast('✅ تم إنشاء المجلد'); }
+        else toast('❌ ' + d.error);
+    });
+}
+
+function expMkfile() {
+    if (!expCurrentPath) { toast('❌ افتح مجلد الأول'); return; }
+    var name = prompt('اسم الملف الجديد:'); if (!name) return;
+    fetch('/explorer/mkfile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:expCurrentPath, name:name}) })
+    .then(function(r){ return r.json(); }).then(function(d){
+        if (d.ok) { expRefresh(); toast('✅ تم إنشاء الملف'); }
+        else toast('❌ ' + d.error);
+    });
+}
+
+// ── Explorer Context Menu ──────────────────────────────────────────────────────
+var _ctxTarget = null;
+
+function _expShowCtx(e, item, entry) {
+    e.preventDefault(); e.stopPropagation();
+    _ctxTarget = { item:item, entry:entry, path:item.dataset.path };
+    if (!expSelected.includes(item.dataset.path)) {
+        expSelected = [item.dataset.path];
+        document.querySelectorAll('.exp-item').forEach(function(i){ i.classList.remove('selected'); });
+        item.classList.add('selected');
+        _expUpdateSelUI();
+    }
+    var menu = document.getElementById('exp-ctx-menu');
+    var paste = document.getElementById('ctx-paste-item');
+    paste.style.display = expClipboard.paths.length ? 'flex' : 'none';
+    menu.classList.add('show');
+    var x = e.clientX, y = e.clientY;
+    if (x + 170 > window.innerWidth)  x = window.innerWidth  - 175;
+    if (y + 280 > window.innerHeight) y = window.innerHeight - 285;
+    menu.style.left = x + 'px'; menu.style.top = y + 'px';
+}
+
+document.addEventListener('click', function() {
+    document.getElementById('exp-ctx-menu').classList.remove('show');
+});
+
+function ctxOpen() {
+    if (!_ctxTarget) return;
+    if (_ctxTarget.entry.type === 'dir') expGoto(_ctxTarget.path);
+    else window.location.href = '/explorer/download?path=' + encodeURIComponent(_ctxTarget.path);
+}
+function ctxCopy() {
+    expClipboard = { paths: expSelected.slice(), op:'copy' };
+    var pb = document.getElementById('exp-paste-btn');
+    if (pb) pb.style.display = 'block';
+    toast('📋 تم النسخ (' + expClipboard.paths.length + ')');
+}
+function ctxCut() {
+    expClipboard = { paths: expSelected.slice(), op:'cut' };
+    document.querySelectorAll('.exp-item.selected').forEach(function(i){ i.classList.add('cut'); });
+    var pb = document.getElementById('exp-paste-btn');
+    if (pb) pb.style.display = 'block';
+    toast('✂️ تم القص (' + expClipboard.paths.length + ')');
+}
+function ctxPaste() {
+    if (!expClipboard.paths.length || !expCurrentPath) return;
+    var ep  = expClipboard.op === 'cut' ? '/explorer/move' : '/explorer/copy';
+    var msg = expClipboard.op === 'cut' ? 'نقل' : 'نسخ';
+    fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paths:expClipboard.paths, dest:expCurrentPath}) })
+    .then(function(r){ return r.json(); }).then(function(d){
+        if (d.ok) { if (expClipboard.op==='cut') expClipboard={paths:[],op:''}; expRefresh(); toast('✅ تم ' + msg); }
+        else toast('❌ ' + (d.errors||[d.error]).join(', '));
+    });
+}
+function ctxRename() {
+    if (!_ctxTarget) return;
+    var old  = _ctxTarget.entry.name;
+    var name = prompt('الاسم الجديد:', old); if (!name || name === old) return;
+    fetch('/explorer/rename', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({src:_ctxTarget.path, name:name}) })
+    .then(function(r){ return r.json(); }).then(function(d){
+        if (d.ok) { expRefresh(); toast('✅ تمت إعادة التسمية'); }
+        else toast('❌ ' + d.error);
+    });
+}
+function ctxDelete() {
+    if (!expSelected.length) return;
+    if (!confirm('حذف ' + expSelected.length + ' عنصر؟')) return;
+    fetch('/explorer/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paths:expSelected}) })
+    .then(function(r){ return r.json(); }).then(function(d){
+        expSelected = []; _expUpdateSelUI(); expRefresh();
+        if (d.ok) toast('🗑️ تم الحذف');
+        else toast('⚠️ بعض الملفات فشلت');
+    });
+}
+function ctxShortcut() {
+    if (!_ctxTarget || !expCurrentPath) return;
+    fetch('/explorer/shortcut', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({src:_ctxTarget.path, dest:expCurrentPath}) })
+    .then(function(r){ return r.json(); }).then(function(d){
+        if (d.ok) { expRefresh(); toast('🔗 تم إنشاء الاختصار'); }
+        else toast('❌ ' + d.error);
+    });
+}
+function ctxProperties() {
+    if (!_ctxTarget) return;
+    fetch('/explorer/properties?path=' + encodeURIComponent(_ctxTarget.path))
+    .then(function(r){ return r.json(); }).then(function(d){
+        if (d.error) { toast('❌ ' + d.error); return; }
+        var sz   = d.size >= 1048576 ? (d.size/1048576).toFixed(2)+' MB' : d.size >= 1024 ? (d.size/1024).toFixed(1)+' KB' : d.size+' B';
+        var mod  = new Date(d.modified*1000).toLocaleString();
+        var cre  = new Date(d.created*1000).toLocaleString();
+        alert('الاسم: ' + d.name + '\nالنوع: ' + (d.type==='folder'?'مجلد':'ملف') + '\nالحجم: ' + sz + '\nالمسار: ' + d.path + '\nالتعديل: ' + mod + '\nالإنشاء: ' + cre);
+    });
+}
+
+// ── Explorer: full expGoto with sort + longpress + highlight ──────────────────
+expGoto = function(path) {
+    expCurrentPath = path;
+    expSelected    = [];
+    _expUpdateSelUI();
+    var list = document.getElementById('exp-list');
+    list.innerHTML = '<div class="exp-loading">جاري التحميل...</div>';
+    document.getElementById('exp-up-btn').disabled = !path;
+
+    if (!path) {
+        fetch('/explorer/drives').then(function(r){ return r.json(); }).then(function(drives) {
+            _expRenderBreadcrumb('');
+            list.innerHTML = '<div class="exp-drives">' +
+                drives.map(function(d) {
+                    return '<div class="exp-drive" onclick="expGoto(\'' + d.replace(/\\/g,'\\\\').replace(/'/g,"\\'") + '\')">' +
+                        '<div class="exp-drive-letter">' + d.replace(':\\','') + '</div>' +
+                        '<div class="exp-drive-label">' + d + '</div></div>';
+                }).join('') + '</div>';
+        });
+        return;
+    }
+
+    fetch('/explorer/list?path=' + encodeURIComponent(path))
+        .then(function(r){ return r.json(); })
+        .then(function(d) {
+            if (d.error) { list.innerHTML = '<div class="exp-loading" style="color:var(--accent2)">' + d.error + '</div>'; return; }
+            _expRenderBreadcrumb(d.path);
+            var sorted = _expSortEntries(d.entries);
+            if (!sorted.length) { list.innerHTML = '<div class="exp-loading">المجلد فاضي</div>'; return; }
+            list.innerHTML = '';
+            sorted.forEach(function(e) {
+                var item    = document.createElement('div');
+                item.className = 'exp-item';
+                var sep    = path.includes('\\') ? '\\' : '/';
+                var clean  = path.endsWith('\\') || path.endsWith('/') ? path : path + sep;
+                item.dataset.path = clean + e.name;
+                item.dataset.type = e.type;
+                item.innerHTML =
+                    '<div class="exp-item-icon">' + _expIcon(e) + '</div>' +
+                    '<div class="exp-item-name">' + e.name + (e.type==='dir' ? '/' : '') + '</div>' +
+                    '<div class="exp-item-meta">' + (e.type==='file' ? _expSize(e.size) : '') + '</div>';
+
+                var lpT = null;
+                item.addEventListener('pointerdown', function(ev) {
+                    lpT = setTimeout(function() { _expShowCtx({clientX:ev.clientX, clientY:ev.clientY, preventDefault:function(){}, stopPropagation:function(){}}, item, e); }, 600);
+                });
+                item.addEventListener('pointerup', function() { clearTimeout(lpT); });
+                item.addEventListener('pointercancel', function() { clearTimeout(lpT); });
+                item.addEventListener('contextmenu', function(ev) { _expShowCtx(ev, item, e); });
+                item.addEventListener('click', function(ev) {
+                    var idx = expSelected.indexOf(item.dataset.path);
+                    if (idx === -1) { expSelected.push(item.dataset.path); item.classList.add('selected'); }
+                    else            { expSelected.splice(idx,1); item.classList.remove('selected'); }
+                    _expUpdateSelUI();
+                });
+                item.addEventListener('dblclick', function() {
+                    if (e.type === 'dir') expGoto(item.dataset.path);
+                    else window.location.href = '/explorer/download?path=' + encodeURIComponent(item.dataset.path);
+                });
+                if (e.denied) item.style.opacity = '.4';
+                list.appendChild(item);
+            });
+        })
+        .catch(function(){ list.innerHTML = '<div class="exp-loading" style="color:var(--accent2)">خطأ في التحميل</div>'; });
+};
+
+document.addEventListener('fullscreenchange', function() {
+    if (!document.fullscreenElement && document.body.classList.contains('gaming-mode')) {
+        document.body.classList.remove('gaming-mode');
+        document.getElementById('exit-gaming').style.display = 'none';
+    }
+});
+
+function showKbFloat() {
+    var fl = document.getElementById('kb-float');
+    var inp = document.getElementById('kb-float-input');
+    fl.classList.add('show');
+    inp.value = '';
+    setTimeout(function() { inp.focus(); }, 100);
+}
+function closeKbFloat() {
+    document.getElementById('kb-float').classList.remove('show');
+    document.getElementById('kb-float-input').blur();
+}
+(function() {
+    var finp = document.getElementById('kb-float-input');
+    finp.addEventListener('input', function(e) {
+        var val = e.target.value;
+        if (val) { socket.emit('type', { text: val }); e.target.value = ''; }
+    });
+    finp.addEventListener('keydown', function(e) {
+        if      (e.key === 'Backspace') { socket.emit('key', {key:'backspace'}); e.preventDefault(); }
+        else if (e.key === 'Enter')     { socket.emit('key', {key:'enter'});     e.preventDefault(); }
+        else if (e.key === 'Escape')    { closeKbFloat();                        e.preventDefault(); }
+    });
+})();
+
+// ── Debug System ──────────────────────────────────────────────────────────────
+var _pccLogs = [];
+function _pccLog(msg, level) {
+    var entry = {t: new Date().toISOString().split('T')[1].slice(0,8), msg: String(msg), level: level||'info'};
+    _pccLogs.unshift(entry);
+    if (_pccLogs.length > 300) _pccLogs.pop();
+    var el = document.getElementById('pcc-debug-list');
+    if (!el) return;
+    var color = level==='error'?'var(--accent2)':level==='warn'?'#ffaa00':'var(--green)';
+    el.innerHTML = _pccLogs.slice(0,100).map(function(e) {
+        var col = e.level==='error'?'var(--accent2)':e.level==='warn'?'#ffaa00':'var(--green)';
+        return '<div style="padding:3px 6px;border-left:2px solid '+col+';margin-bottom:2px;font-size:10px;font-family:monospace;word-break:break-all">'+
+            '<span style="color:var(--muted)">'+e.t+'</span> <span style="color:'+col+'">'+e.msg+'</span></div>';
+    }).join('');
+}
+window.onerror = function(msg, src, line) {
+    _pccLog('ERR: '+msg+' ('+String(src).split('/').pop()+':'+line+')', 'error');
+};
+window.addEventListener('unhandledrejection', function(e) {
+    _pccLog('PROMISE: '+(e.reason||e), 'error');
+});
+function showDebugPanel() {
+    document.getElementById('pcc-debug-panel').classList.toggle('show');
+}
+// Wrap socket.emit to log
+setTimeout(function() {
+    var _orig = socket.emit.bind(socket);
+    socket.emit = function(ev, data) {
+        if (ev !== 'move' && ev !== 'scroll') _pccLog('emit: '+ev+' '+JSON.stringify(data||{}).slice(0,80));
+        return _orig(ev, data);
+    };
+    socket.on('connect', function(){ _pccLog('connected id='+socket.id); });
+    socket.on('disconnect', function(r){ _pccLog('disconnected: '+r, 'warn'); });
+    socket.on('connect_error', function(e){ _pccLog('connect_error: '+e, 'error'); });
+    _pccLog('debug ready');
+}, 500);
+
+// ── EMUI Shortcut Fix ─────────────────────────────────────────────────────────
+(function() {
+    function addTouchDelegate(containerId) {
+        var el = document.getElementById(containerId);
+        if (!el) return;
+        var _startY = 0, _moved = false;
+        el.addEventListener('touchstart', function(e) {
+            _startY = e.touches[0].clientY; _moved = false;
+        }, {passive: true});
+        el.addEventListener('touchmove', function(e) {
+            if (Math.abs(e.touches[0].clientY - _startY) > 8) _moved = true;
+        }, {passive: true});
+        el.addEventListener('touchend', function(e) {
+            if (_moved) return;
+            var btn = e.target.closest('.sc-btn, .pres-btn');
+            if (!btn) return;
+            e.preventDefault();
+            var oc = btn.getAttribute('onclick');
+            if (oc) { try { eval(oc); } catch(ex) {} }
+        }, {passive: false});
+    }
+    addTouchDelegate('panel-keys');
+    addTouchDelegate('panel-pres');
+})();
+
+var _currentLogTab = 'server';
+function setLogTab(tab) {
+    _currentLogTab = tab;
+    document.getElementById('ltab-srv').style.color = tab==='server'?'var(--accent)':'';
+    document.getElementById('ltab-cli').style.color = tab==='client'?'var(--accent)':'';
+    document.getElementById('log-list').style.display = tab==='server'?'flex':'none';
+    document.getElementById('client-log-list').style.display = tab==='client'?'flex':'none';
+    if (tab==='server') loadLog();
+    else renderClientLog();
+}
+function renderClientLog() {
+    var el = document.getElementById('client-log-list');
+    if (!el) return;
+    el.innerHTML = _pccLogs.slice(0,150).map(function(e) {
+        var col = e.level==='error'?'var(--accent2)':e.level==='warn'?'#ffaa00':'var(--green)';
+        return '<div class="log-item" style="border-left-color:'+col+'">'+
+            '<span class="log-time">'+e.t+'</span>'+
+            '<span class="log-type" style="color:'+col+'">'+e.level+'</span>'+
+            '<span class="log-detail">'+e.msg+'</span></div>';
+    }).join('') || '<div style="color:var(--muted);text-align:center;padding:20px;font-size:11px">لا يوجد لوج</div>';
+}
+function refreshLog() { if(_currentLogTab==='server') loadLog(); else renderClientLog(); }
+function clearCurrentLog() {
+    if (_currentLogTab==='server') clearLog();
+    else { _pccLogs=[]; renderClientLog(); }
+}
+
+// ── Camera Wheel ──────────────────────────────────────────────────────────────
+function _buildWheelSVG(sz, angle) {
+    var cx = sz/2, cy = sz/2;
+    var PI = Math.PI, cos = Math.cos, sin = Math.sin;
+    var OR = sz/2 - 3;   // outer rim radius
+    var RW = OR * 0.16;  // rim thickness
+    var IR = OR - RW;    // inner rim edge
+    var HR = OR * 0.22;  // hub radius
+    var SW = OR * 0.12;  // spoke width
+
+    // 3 spokes at 120deg each, rotated by angle
+    var spokes = '';
+    for (var i = 0; i < 3; i++) {
+        var a = angle + (i * 2 * PI / 3);
+        var x1 = cx + (HR + 2) * cos(a), y1 = cy + (HR + 2) * sin(a);
+        var x2 = cx + (IR - 2) * cos(a), y2 = cy + (IR - 2) * sin(a);
+        spokes += '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="#00d4ff" stroke-width="' + SW.toFixed(1) + '" stroke-linecap="round"/>';
+        // spoke crossbar near rim
+        var cbr = IR * 0.88;
+        var bx = cx + cbr * cos(a), by = cy + cbr * sin(a);
+        var bw = SW * 1.8;
+        var px = cos(a + PI/2), py = sin(a + PI/2);
+        spokes += '<line x1="' + (bx - px*bw).toFixed(1) + '" y1="' + (by - py*bw).toFixed(1) + '" x2="' + (bx + px*bw).toFixed(1) + '" y2="' + (by + py*bw).toFixed(1) + '" stroke="#00d4ff" stroke-width="' + (SW*0.7).toFixed(1) + '" stroke-linecap="round"/>';
+    }
+
+    return '<svg xmlns="http://www.w3.org/2000/svg" width="' + sz + '" height="' + sz + '" viewBox="0 0 ' + sz + ' ' + sz + '" style="display:block;pointer-events:none">'
+        // dark bg disc
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="' + (OR+2) + '" fill="#0d1b26"/>'
+        // outer rim fill
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="' + OR.toFixed(1) + '" fill="none" stroke="#00d4ff" stroke-width="' + RW.toFixed(1) + '"/>'
+        // rim inner shadow
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="' + IR.toFixed(1) + '" fill="none" stroke="#003c55" stroke-width="2"/>'
+        // grip marks on rim
+        + (function(){
+            var g=''; for(var i=0;i<12;i++){
+                var a2 = angle + (i/12)*2*PI;
+                var mr = OR - RW/2;
+                var gx=cx+mr*cos(a2), gy=cy+mr*sin(a2);
+                var px2=cos(a2+PI/2)*RW*0.35, py2=sin(a2+PI/2)*RW*0.35;
+                g+='<line x1="'+(gx-px2).toFixed(1)+'" y1="'+(gy-py2).toFixed(1)+'" x2="'+(gx+px2).toFixed(1)+'" y2="'+(gy+py2).toFixed(1)+'" stroke="#ffffff22" stroke-width="1.5" stroke-linecap="round"/>';
+            }
+            return g;
+          })()
+        // spokes
+        + spokes
+        // hub outer ring
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="' + HR.toFixed(1) + '" fill="#0d1b26" stroke="#00d4ff" stroke-width="2.5"/>'
+        // horn pad
+        + '<ellipse cx="' + cx + '" cy="' + (cy + HR*0.1).toFixed(1) + '" rx="' + (HR*0.6).toFixed(1) + '" ry="' + (HR*0.45).toFixed(1) + '" fill="#0a2233"/>'
+        // center dot
+        + '<circle cx="' + cx + '" cy="' + cy + '" r="' + (HR*0.2).toFixed(1) + '" fill="#00d4ff"/>'
+        + '</svg>';
+}
+
+function _renderWheelPlay(container, item) {
+    var sz = Math.max(item.w, item.h);
+    var el = document.createElement('div');
+    el.className    = 'gc-wheel';
+    el.style.left   = item.x + '%';
+    el.style.top    = item.y + '%';
+    el.style.width  = sz + 'px';
+    el.style.height = sz + 'px';
+    el.style.background = 'transparent';
+    el.style.border     = 'none';
+
+    var angle = 0;
+    el.innerHTML = _buildWheelSVG(sz, angle);
+
+    var active = false, cx = 0, cy = 0, raf = null;
+    var dx = 0, dy = 0, lastAngle = 0;
+
+    el.addEventListener('pointerdown', function(ev) {
+        ev.preventDefault();
+        el.setPointerCapture(ev.pointerId);
+        var r = el.getBoundingClientRect();
+        cx = r.left + r.width  / 2;
+        cy = r.top  + r.height / 2;
+        lastAngle = Math.atan2(ev.clientY - cy, ev.clientX - cx);
+        active = true;
+        vibrateAction('click');
+        if (!raf) _wheelLoop();
+    }, {passive: false});
+
+    el.addEventListener('pointermove', function(ev) {
+        if (!active) return;
+        dx = ev.clientX - cx;
+        dy = ev.clientY - cy;
+        var curAngle = Math.atan2(dy, dx);
+        var delta    = curAngle - lastAngle;
+        // wrap around
+        if (delta >  Math.PI) delta -= 2 * Math.PI;
+        if (delta < -Math.PI) delta += 2 * Math.PI;
+        angle     += delta;
+        lastAngle  = curAngle;
+        el.innerHTML = _buildWheelSVG(sz, angle);
+    }, {passive: false});
+
+    el.addEventListener('pointerup',     function() { active = false; dx = 0; dy = 0; if(raf){cancelAnimationFrame(raf);raf=null;} });
+    el.addEventListener('pointercancel', function() { active = false; dx = 0; dy = 0; if(raf){cancelAnimationFrame(raf);raf=null;} });
+
+    function _wheelLoop() {
+        if (!active) { raf = null; return; }
+        var sens = gyroSens * 0.4;
+        var mdx  = Math.round(dx * sens * 0.05);
+        var mdy  = Math.round(dy * sens * 0.05);
+        if (Math.abs(dx) > deadZone || Math.abs(dy) > deadZone) {
+            socket.emit('move', {dx: mdx, dy: mdy});
+        }
+        raf = requestAnimationFrame(_wheelLoop);
+    }
+
+    container.appendChild(el);
+}
+
+function _wheelStop(id) {}
+
+// ── OS Mode Toggle ─────────────────────────────────────────────────────────────
+var _osMode = localStorage.getItem('portdesk_os') || 'windows';
+function setOSMode(os) {
+    _osMode = os;
+    localStorage.setItem('portdesk_os', os);
+    document.getElementById('sc-os-windows').style.display = os === 'windows' ? 'block' : 'none';
+    document.getElementById('sc-os-linux').style.display   = os === 'linux'   ? 'block' : 'none';
+    document.getElementById('os-win-btn').classList.toggle('active', os === 'windows');
+    document.getElementById('os-lin-btn').classList.toggle('active', os === 'linux');
+}
+
+renderGcProfiles();
+setControllerType(gcType);
+checkPIN();
+loadWhitelist();
+setOSMode(_osMode);
+loadAllSettings();
+loadMacros();
+expInit();
+loadScheduled();
+applyTheme();
+setLang(currentLang);
+document.getElementById('lang-select').value = currentLang;
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+flask>=2.0.0
+flask-socketio>=5.0.0
+pyautogui>=0.9.53
+opencv-python>=4.5.0
+mss>=6.0.0
+psutil>=5.8.0
+pyperclip>=1.8.0
+sounddevice>=0.4.0
+numpy>=1.20.0
+Pillow>=8.0.0
+cryptography>=3.0
+
+>>>>>>> python -m pip install flask flask-socketio pyautogui opencv-python mss psutil pyperclip sounddevice numpy Pillow cryptography
+--------------------
+
+Python: Version 3.8 or higher.
+ (Base requirement for $f$-string interpolation and advanced typing features).
+-------------
+
+Windows: Windows 7 and above.
+ (Windows 10/11 recommended for optimal keybd_event handling and native OS shortcut support).
+-------------
+
+Linux: Any modern distribution (e.g., Ubuntu 20.04+, Debian 11+, etc.).
+-------------
+
+macOS: Version 10.14 (Mojave) or later.

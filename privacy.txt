@@ -1,0 +1,18 @@
+Privacy Policy
+Last Updated: March 2026
+1. Executive Summary: Zero-Data Architecture
+PortDesk is engineered on a Zero-Data collection principle. The software operates as a localized environment where all data processing, transmission, and storage are confined strictly to the user's private infrastructure.
+There are no cloud dependencies, no telemetry, and no third-party relays.
+2. Data Processing & Storage
+PortDesk facilitates real-time interaction between your devices via your local network (LAN). No data is transmitted to external servers or the developer.
+Data CategoryProcessing ScopePersistenceInput (Mouse/Keyboard)Volatile Memory (RAM) OnlyNoneMedia (Screen/Audio)Volatile Memory (RAM) OnlyNoneFile MetadataLocal Machine OnlyNoneSecurity (PIN/Whitelist)Encrypted Local JSON / LocalStorageLocal Device OnlySystem LogsLocal `.log` FilesLocal Device Only
+3. Network & Security Architecture
+PortDesk utilizes a Direct-to-Peer (D2P) connection model to ensure maximum privacy:
+* Local Scope: The server binds to your local interface (`0.0.0.0:5000`) and remains inaccessible from the public internet behind standard NAT/firewalls.
+* Outbound Communication: The software makes zero outbound API calls. Network discovery is handled via internal UDP checks to resolve local IP addresses without data transmission.
+* Authentication: Access is governed by a Hardware-Specific Whitelist and an optional SHA-256 Hashed PIN, both stored exclusively on your host machine.
+4. Transparency & Verification
+In alignment with our commitment to security, PortDesk is 100% Open Source. Users and security auditors are encouraged to review the source code (`portdesk-server.py` and `portdesk_client.html`) to verify the absence of telemetry, trackers, or external HTTP requests.
+5. User Control
+You maintain absolute sovereignty over your data. All configuration files (Macros, Schedules, and Security Logs) are stored locally on your PC and can be audited or deleted at any time without affecting the core software integrity.
+PortDesk: Privacy by Design. Control by You.
