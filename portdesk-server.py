@@ -4,7 +4,7 @@ from collections import defaultdict
 from functools import wraps
 import pyautogui
 import socket as _socket
-import json, os, time, ctypes, threading
+import json, os, time, ctypes, threading, logging
 try:
     import numpy as np
     import cv2
@@ -793,7 +793,9 @@ def explorer_shortcut():
                 f.write(f'[Desktop Entry]\nType=Link\nName={name}\nURL=file://{src}\n')
             os.chmod(desktop, 0o755)
         return jsonify({'ok': True})
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        logging.exception("Failed to create explorer shortcut")
+        return jsonify({'error': 'internal error'}), 500
 
 @app.route('/explorer/properties')
 def explorer_properties():
