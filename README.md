@@ -58,7 +58,7 @@ You'll see something like:
 ══════════════════════════════════════════════════
 ```
 
-**** Make sure** that you are using the main wifi network. guest or data network wont work with wifi mode
+**Make sure** that you are using the main wifi network. guest or data network wont work with wifi mode
 
 ### 3. Open on any device
 
