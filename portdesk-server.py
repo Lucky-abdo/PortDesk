@@ -797,25 +797,39 @@ def explorer_shortcut():
 
 @app.route('/explorer/properties')
 def explorer_properties():
-    path = request.args.get('path','').strip()
-    if not path or not os.path.exists(path):
+    raw_path = request.args.get('path', '').strip()
+    # Constrain path to BASE_DIR to avoid directory traversal / uncontrolled paths
+    if not raw_path:
         return jsonify({'error': 'not found'}), 404
+    # Build a normalized absolute path under BASE_DIR
+    fullpath = os.path.normpath(os.path.join(BASE_DIR, raw_path))
     try:
+        # Ensure the resolved path stays within BASE_DIR
+        if os.path.commonpath([BASE_DIR, fullpath]) != BASE_DIR:
+            return jsonify({'error': 'not found'}), 404
+        if not os.path.exists(fullpath):
+            return jsonify({'error': 'not found'}), 404
         import shutil as _shutil
-        stat = os.stat(path)
+        stat = os.stat(fullpath)
         info = {
-            'name':     os.path.basename(path),
-            'path':     path,
-            'type':     'folder' if os.path.isdir(path) else 'file',
+            'name':     os.path.basename(fullpath),
+            'path':     fullpath,
+            'type':     'folder' if os.path.isdir(fullpath) else 'file',
             'size':     stat.st_size,
             'modified': int(stat.st_mtime),
             'created':  int(stat.st_ctime),
         }
-        if os.path.isdir(path):
-            total = sum(os.path.getsize(os.path.join(r,f)) for r,_,fs in os.walk(path) for f in fs if os.path.exists(os.path.join(r,f)))
+        if os.path.isdir(fullpath):
+            total = sum(
+                os.path.getsize(os.path.join(r, f))
+                for r, _, fs in os.walk(fullpath)
+                for f in fs
+                if os.path.exists(os.path.join(r, f))
+            )
             info['size'] = total
         return jsonify(info)
-    except Exception as e: return jsonify({'error': str(e)}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ── Macro Recorder ─────────────────────────────────────────────────────────────
 MACROS_FILE    = os.path.join(BASE_DIR, "portdesk_macros.json")
