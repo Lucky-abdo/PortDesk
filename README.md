@@ -58,6 +58,8 @@ You'll see something like:
 ══════════════════════════════════════════════════
 ```
 
+**** Make sure** that you are using the main wifi network. guest or data network wont work with wifi mode
+
 ### 3. Open on any device
 
 - **WiFi:** Open `http://192.168.1.x:5000` in any browser on any device on the same network
