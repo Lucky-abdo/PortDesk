@@ -154,8 +154,8 @@ header{display:flex;align-items:center;justify-content:space-between;padding:8px
 .setting-row{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--border);}
 .setting-row label{flex:1;font-size:12px;}
 .sv{font-size:11px;color:var(--accent);font-family:'JetBrains Mono',monospace;min-width:28px;text-align:left;}
-input[type=range]{flex:1;min-width:0;accent-color:var(--accent);height:3px;-webkit-appearance:none;background:var(--border);border-radius:2px;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;}
+input[type=range]{flex:1;min-width:0;accent-color:var(--accent);height:3px;appearance:none;-webkit-appearance:none;background:var(--border);border-radius:2px;}
+input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--accent);cursor:pointer;}
 .toggle{width:40px;height:22px;border-radius:11px;background:var(--border);position:relative;cursor:pointer;transition:background .2s;flex-shrink:0;}
 .toggle.on{background:var(--accent);}
 .toggle::after{content:'';position:absolute;width:16px;height:16px;border-radius:50%;background:#fff;top:3px;left:3px;transition:left .2s;}
@@ -358,11 +358,6 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
 .kb-float.show{display:flex;}
 .kb-float input{flex:1;background:var(--bg);color:var(--text);border:1px solid var(--accent)44;border-radius:8px;padding:10px 12px;font-size:16px;outline:none;font-family:inherit;}
 .kb-float-close{padding:8px 12px;background:var(--accent2)11;border:1px solid var(--accent2)44;border-radius:8px;color:var(--accent2);font-size:12px;cursor:pointer;}
-#pcc-debug-panel{display:none;position:fixed;bottom:0;left:0;right:0;height:40vh;background:var(--bg);border-top:2px solid var(--accent);z-index:9999;flex-direction:column;}
-#pcc-debug-panel.show{display:flex;}
-.pcc-debug-header{display:flex;align-items:center;padding:4px 8px;background:var(--surface);flex-shrink:0;}
-#pcc-debug-list{flex:1;overflow-y:auto;padding:4px;}
-
 .gc-wheel{position:absolute;cursor:pointer;touch-action:none;user-select:none;transform:translate(-50%,-50%);}
 .editor-placed.wheel-item{border-radius:50%;}
 .editor-placed.wheel-item .e-resize{bottom:-4px;right:-4px;}
@@ -397,7 +392,7 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
 </div>
 
 <header>
-  <div class="logo" onclick="showDebugPanel()" style="cursor:pointer">PortDesk v1.0 🐞</div>
+  <div class="logo" style="cursor:pointer">PortDesk v1.0</div>
   <button class="action-btn" id="fs-toggle" onclick="toggleGamingMode()" data-i18n="gaming_mode_btn">🎮 وضع اللعب</button>
   <div class="header-right">
     <div class="latency-badge" id="latency-badge">--ms</div>
@@ -463,6 +458,7 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
     <div class="os-toggle-row">
       <button class="os-toggle-btn active" id="os-win-btn" onclick="setOSMode('windows')">🪟 Windows</button>
       <button class="os-toggle-btn" id="os-lin-btn" onclick="setOSMode('linux')">🐧 Linux</button>
+      <button class="os-toggle-btn" id="os-mac-btn" onclick="setOSMode('mac')">🍎 macOS</button>
     </div>
 
     <!-- SYSTEM (same for both) -->
@@ -516,6 +512,23 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
         <div class="sc-btn" onclick="sc(['super','left'])"><div class="sc-icon">◀️</div><div class="sc-label">Snap Left</div><div class="sc-key">Super+←</div></div>
         <div class="sc-btn" onclick="sc(['super','right'])"><div class="sc-icon">▶️</div><div class="sc-label">Snap Right</div><div class="sc-key">Super+→</div></div>
         <div class="sc-btn" onclick="sc(['alt','f2'])"><div class="sc-icon">🚀</div><div class="sc-label">Run</div><div class="sc-key">Alt+F2</div></div>
+      </div>
+    </div>
+
+    <!-- macOS shortcuts -->
+    <div id="sc-os-mac" style="display:none">
+      <div class="section-title">macOS</div>
+      <div class="shortcut-grid">
+        <div class="sc-btn" onclick="sc(['cmd','tab'])"><div class="sc-icon">🔄</div><div class="sc-label">Switch App</div><div class="sc-key">⌘+Tab</div></div>
+        <div class="sc-btn" onclick="sc(['cmd','h'])"><div class="sc-icon">🏠</div><div class="sc-label">Hide</div><div class="sc-key">⌘+H</div></div>
+        <div class="sc-btn" onclick="sc(['ctrl','cmd','q'])"><div class="sc-icon">🔒</div><div class="sc-label">Lock</div><div class="sc-key">⌃⌘+Q</div></div>
+        <div class="sc-btn" onclick="sc(['cmd','q'])"><div class="sc-icon">❌</div><div class="sc-label">Quit App</div><div class="sc-key">⌘+Q</div></div>
+        <div class="sc-btn" onclick="sc(['cmd','space'])"><div class="sc-icon">🔍</div><div class="sc-label">Spotlight</div><div class="sc-key">⌘+Space</div></div>
+        <div class="sc-btn" onclick="sc(['cmd','shift','3'])"><div class="sc-icon">📷</div><div class="sc-label">Screenshot</div><div class="sc-key">⌘⇧+3</div></div>
+        <div class="sc-btn" onclick="sc(['cmd','ctrl','f'])"><div class="sc-icon">⛶</div><div class="sc-label">Fullscreen</div><div class="sc-key">⌘⌃+F</div></div>
+        <div class="sc-btn" onclick="sc(['cmd','w'])"><div class="sc-icon">🗙</div><div class="sc-label">Close Win</div><div class="sc-key">⌘+W</div></div>
+        <div class="sc-btn" onclick="sc(['cmd','m'])"><div class="sc-icon">⬇️</div><div class="sc-label">Minimize</div><div class="sc-key">⌘+M</div></div>
+        <div class="sc-btn" onclick="sc(['cmd','shift','4'])"><div class="sc-icon">✂️</div><div class="sc-label">Crop Shot</div><div class="sc-key">⌘⇧+4</div></div>
       </div>
     </div>
 
@@ -681,14 +694,6 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
   <button class="kb-float-close" onclick="closeKbFloat()">✕</button>
 </div>
 
-<!-- Debug Panel -->
-<div id="pcc-debug-panel">
-  <div class="pcc-debug-header">
-    <span style="font-size:10px;color:var(--accent);font-family:monospace;flex:1">PortDesk Debug Console</span>
-    <button onclick="document.getElementById('pcc-debug-panel').classList.remove('show')" style="background:none;border:none;color:var(--accent2);cursor:pointer;font-size:14px">✕</button>
-  </div>
-  <div id="pcc-debug-list"></div>
-</div>
 <!-- OSK -->
 <div class="osk-overlay" id="osk-overlay" onclick="closeOSK()"></div>
 <div class="osk-panel" id="osk-panel">
@@ -937,6 +942,12 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
 var touchSens = 18, gyroSens = 12, deadZone = 4, scrollSpeed = 5;
 var selectMode = false, _gyroLocked = false;
 var gyroActive = false, calibB = 0, calibG = 0, lastB = 0, lastG = 0;
+var _pccLogs = []; // client-side log entries for Log tab
+function _pccLog(msg, level){
+    var entry = {t: new Date().toISOString().split('T')[1].slice(0,8), msg: String(msg), level: level||'info'};
+    _pccLogs.unshift(entry);
+    if(_pccLogs.length>300) _pccLogs.pop();
+}
 var scrollTimer = null, hapticOn = false, soundOn = false;
 var sleepOn = true, sleepTimeout = 60, sleepTimer = null;
 var currentProfile = 'normal';
@@ -1018,13 +1029,17 @@ function loadAllSettings() {
     gyroBtn.classList.toggle('on', gyroActive);
     document.getElementById('gyro-bar').classList.toggle('show', gyroActive);
 
-    setProfile(currentProfile);
+    // Don't call setProfile(currentProfile) here: it would override manual touch/gyro/dead/scroll settings
+    if (document.getElementById('profile-badge')) {
+        document.getElementById('profile-badge').textContent = currentProfile;
+    }
     updateAIDisplay();
     toast('✅ تم تحميل الإعدادات');
 }
 
+
 // ── Socket ─────────────────────────────────────────────────────────────────────
-var socket = io();
+var socket = io({ transports: ['websocket', 'polling'] });
 socket.on('connect', function() {
     document.getElementById('status-pill').className = 'status-pill on';
     document.getElementById('status-text').textContent = '✓';
@@ -2410,52 +2425,6 @@ function applyTheme() {
 function toggleTheme() { lightTheme = !lightTheme; applyTheme(); }
 
 // ── Language ───────────────────────────────────────────────────────────────────
-var LANG = {
-    ar: {
-        touch:'لمس', keys:'اختصارات', pres:'عرض', gaming:'Gaming', screen:'شاشة',
-        settings:'إعدادات', explorer:'Explorer', macros:'Macros', tasks:'Tasks',
-        sched:'Sched', log:'Log', connect:'متصل', disconnect:'منقطع',
-        mouse_sens:'حساسية اللمس', gyro_sens:'حساسية الجيرو', dead_zone:'Dead Zone',
-        scroll_speed:'سرعة السكرول', haptic:'Haptic', sound:'Sound',
-        auto_sleep:'تفعيل', sleep_dur:'مدة (ثانية)', set_pin:'تعيين PIN',
-        clear_pin:'إلغاء PIN', export:'تصدير', import:'استيراد',
-        add_whitelist:'إضافة هذا الجهاز للقايمة البيضا', clear_whitelist:'مسح القايمة البيضا',
-        ai_reset:'إعادة تعلم AI', day_night:'وضع النهار/الليل', lang:'اللغة',
-        remote_audio:'Remote Audio', mic:'ميكروفون الموبايل',
-        left_click:'يسار', right_click:'يمين', double_click:'دبل',
-        gyro_off:'جيرو: إيقاف', gyro_on:'جيرو: تشغيل',
-        ai_off:'AI: إيقاف', ai_on:'AI: تشغيل',
-        select_mode:'وضع التحديد — حرك مع الضغط', normal_mode:'وضع عادي',
-        tasks_running:'العمليات الجارية', refresh:'تحديث', auto:'تلقائي', stop:'إيقاف',
-        whitelist_empty:'القايمة فاضية — لازم إضافة الأجهزة من الكوماند',
-        copy:'نسخ', paste:'لصق', undo:'تراجع', redo:'إعادة', select_all:'تحديد الكل',
-        save:'حفظ', cut:'قص', search:'بحث', switch_win:'تبديل', lock:'قفل',
-        close_win:'إغلاق', explorer_sc:'مستكشف',
-        next_track:'التالي', prev_track:'السابق', mute:'كتم', vol_up:'صوت +', vol_dn:'صوت -'
-    },
-    en: {
-        touch:'Touch', keys:'Shortcuts', pres:'Present', gaming:'Gaming', screen:'Screen',
-        settings:'Settings', explorer:'Explorer', macros:'Macros', tasks:'Tasks',
-        sched:'Sched', log:'Log', connect:'Connected', disconnect:'Disconnected',
-        mouse_sens:'Touch Sensitivity', gyro_sens:'Gyro Sensitivity', dead_zone:'Dead Zone',
-        scroll_speed:'Scroll Speed', haptic:'Haptic', sound:'Sound',
-        auto_sleep:'Enable', sleep_dur:'Duration (sec)', set_pin:'Set PIN',
-        clear_pin:'Clear PIN', export:'Export', import:'Import',
-        add_whitelist:'Add this device to whitelist', clear_whitelist:'Clear whitelist',
-        ai_reset:'Reset AI Learning', day_night:'Day/Night Mode', lang:'Language',
-        remote_audio:'Remote Audio', mic:'Mobile Microphone',
-        left_click:'Left', right_click:'Right', double_click:'Double',
-        gyro_off:'Gyro: Off', gyro_on:'Gyro: On',
-        ai_off:'AI: Off', ai_on:'AI: On',
-        select_mode:'Select Mode — drag to select', normal_mode:'Normal Mode',
-        tasks_running:'Running Processes', refresh:'Refresh', auto:'Auto', stop:'Stop',
-        whitelist_empty:'List empty — devices must be added from CMD',
-        copy:'Copy', paste:'Paste', undo:'Undo', redo:'Redo', select_all:'Select All',
-        save:'Save', cut:'Cut', search:'Search', switch_win:'Switch', lock:'Lock',
-        close_win:'Close', explorer_sc:'Explorer',
-        next_track:'Next', prev_track:'Prev', mute:'Mute', vol_up:'Vol +', vol_dn:'Vol -'
-    }
-};
 var currentLang = localStorage.getItem('pcc_lang') || 'ar';
 
 var I18N_EN = {"tab_touch": "Touch", "tab_keys": "Shortcuts", "tab_pres": "Present", "gaming": "Gaming", "tab_screen": "Screen", "tab_settings": "Settings", "tp_hint": "Touch Area", "tp_scroll_hint": "Two fingers = scroll", "btn_left": "Left", "btn_right": "Right", "btn_double": "Double", "sc_copy": "Copy", "sc_paste": "Paste", "sc_undo": "Undo", "sc_redo": "Redo", "sc_selall": "Select All", "sc_save": "Save", "sc_cut": "Cut", "sc_search": "Search", "sc_switch": "Switch", "sc_lock": "Lock", "sc_close": "Close", "sc_explorer": "Explorer", "sc_next": "Next", "sc_prev": "Prev", "sc_mute": "Mute", "sc_volup": "Vol +", "sc_voldn": "Vol -", "pres_start": "Start (F5)", "pres_up": "Up", "pres_down": "Down", "pres_black": "Black (B)", "pres_white": "White (W)", "pres_end": "End (Esc)", "gc_new": "+ New", "gc_fullmode": "🎮 Full Mode", "scr_hint": "Press Start to view screen", "scr_start": "▶ Start", "scr_stop": "⏹ Stop", "scr_res": "📐 Resolution", "scr_quality": "🎨 Quality", "scr_monitor": "🖥️ Monitor", "scr_cursor": "🎨 Cursor Color", "scr_type": "⌨️ Type", "set_tsens": "⚡ Touch Sensitivity", "set_gsens": "🌀 Gyro Sensitivity", "set_scroll": "📜 Scroll Speed", "set_sleep_en": "💤 Enable", "set_sleep_dur": "⏱️ Duration (sec)", "set_pin": "🔐 Set PIN", "set_pin_clr": "🔓 Clear PIN", "set_export": "💾 Export", "set_import": "📥 Import", "set_wl_add": "📱 Add this device to whitelist", "set_wl_clr": "🗑️ Clear whitelist", "set_ai_reset": "🧠 Reset AI Learning", "set_theme": "🌗 Day/Night Mode", "set_lang": "🌐 Language", "set_audio": "🔊 Remote Audio", "set_mic": "🎙️ Mobile Microphone", "streaming": "Streaming", "btn_set": "Set", "btn_cancel": "Cancel", "btn_export": "Export", "btn_import": "Import", "btn_add": "Add", "btn_clear": "Clear", "btn_reset": "Reset", "btn_start": "Start", "pin_prompt": "Enter PIN to continue", "sleep_msg": "Tap to wake", "gaming_mode_btn": "🎮 Gaming Mode", "exit_gaming": "Exit Gaming Mode ✖", "tasks_title": "Running Processes", "tasks_auto": "▶ Auto", "sched_title": "⏰ Scheduled Tasks", "sched_macro_placeholder": "Select macro...", "btn_add2": "+ Add", "log_title": "Log", "macros_title": "⚡ Macros", "macro_rec": "⏺ Record", "keypicker_title": "🎹 Pick a Key", "exp_root": "🖥️ This PC", "copy": "Copy", "paste": "Paste", "undo": "Undo", "redo": "Redo", "save": "Save", "cut": "Cut", "search": "Search", "select_all": "Select All", "switch_win": "Switch", "lock": "Lock", "close_win": "Close", "explorer_sc": "Explorer", "next_track": "Next", "prev_track": "Prev", "mute": "Mute", "vol_up": "Vol +", "vol_dn": "Vol -"};
@@ -2523,8 +2492,8 @@ function setLang(lang) {
     var aiBtn = document.getElementById('ai-btn');
     if (aiBtn) aiBtn.textContent = '🧠 ' + (aiActive ? (lang==='en'?'AI: On':'AI: تشغيل') : (lang==='en'?'AI: Off':'AI: إيقاف'));
 
-    var wl = document.getElementById('whitelist-display');
-    if (wl && wl.textContent.indexOf('✓') === -1) wl.textContent = lang==='en' ? 'List empty — add devices from CMD' : 'القايمة فاضية — لازم إضافة الأجهزة من الكوماند';
+    // whitelist-display is updated by loadWhitelist; do not override here.
+
 }
 
 // ── Mouse Select Mode ──────────────────────────────────────────────────────────
@@ -2586,6 +2555,10 @@ function toggleRemoteAudio() {
         }).catch(function(){ toast('❌ خطأ'); });
     } else {
         fetch('/audio/stop', {method:'POST'});
+        if (_audioCtxStream) {
+            try { _audioCtxStream.close(); } catch (e) { console.warn('audio context close failed', e); }
+            _audioCtxStream = null;
+        }
         toast('🔇 Remote Audio متوقف');
     }
 }
@@ -3042,41 +3015,13 @@ function closeKbFloat() {
     });
 })();
 
-// ── Debug System ──────────────────────────────────────────────────────────────
-var _pccLogs = [];
-function _pccLog(msg, level) {
-    var entry = {t: new Date().toISOString().split('T')[1].slice(0,8), msg: String(msg), level: level||'info'};
-    _pccLogs.unshift(entry);
-    if (_pccLogs.length > 300) _pccLogs.pop();
-    var el = document.getElementById('pcc-debug-list');
-    if (!el) return;
-    var color = level==='error'?'var(--accent2)':level==='warn'?'#ffaa00':'var(--green)';
-    el.innerHTML = _pccLogs.slice(0,100).map(function(e) {
-        var col = e.level==='error'?'var(--accent2)':e.level==='warn'?'#ffaa00':'var(--green)';
-        return '<div style="padding:3px 6px;border-left:2px solid '+col+';margin-bottom:2px;font-size:10px;font-family:monospace;word-break:break-all">'+
-            '<span style="color:var(--muted)">'+e.t+'</span> <span style="color:'+col+'">'+e.msg+'</span></div>';
-    }).join('');
-}
-window.onerror = function(msg, src, line) {
-    _pccLog('ERR: '+msg+' ('+String(src).split('/').pop()+':'+line+')', 'error');
-};
-window.addEventListener('unhandledrejection', function(e) {
-    _pccLog('PROMISE: '+(e.reason||e), 'error');
-});
-function showDebugPanel() {
-    document.getElementById('pcc-debug-panel').classList.toggle('show');
-}
-// Wrap socket.emit to log
+// ── Debug System Disabled ─────────────────────────────────────────────────────
+// logging panel removed by request
 setTimeout(function() {
     var _orig = socket.emit.bind(socket);
     socket.emit = function(ev, data) {
-        if (ev !== 'move' && ev !== 'scroll') _pccLog('emit: '+ev+' '+JSON.stringify(data||{}).slice(0,80));
         return _orig(ev, data);
     };
-    socket.on('connect', function(){ _pccLog('connected id='+socket.id); });
-    socket.on('disconnect', function(r){ _pccLog('disconnected: '+r, 'warn'); });
-    socket.on('connect_error', function(e){ _pccLog('connect_error: '+e, 'error'); });
-    _pccLog('debug ready');
 }, 500);
 
 // ── EMUI Shortcut Fix ─────────────────────────────────────────────────────────
@@ -3245,8 +3190,6 @@ function _renderWheelPlay(container, item) {
     container.appendChild(el);
 }
 
-function _wheelStop(id) {}
-
 // ── OS Mode Toggle ─────────────────────────────────────────────────────────────
 var _osMode = localStorage.getItem('portdesk_os') || 'windows';
 function setOSMode(os) {
@@ -3254,8 +3197,10 @@ function setOSMode(os) {
     localStorage.setItem('portdesk_os', os);
     document.getElementById('sc-os-windows').style.display = os === 'windows' ? 'block' : 'none';
     document.getElementById('sc-os-linux').style.display   = os === 'linux'   ? 'block' : 'none';
+    document.getElementById('sc-os-mac').style.display     = os === 'mac'     ? 'block' : 'none';
     document.getElementById('os-win-btn').classList.toggle('active', os === 'windows');
     document.getElementById('os-lin-btn').classList.toggle('active', os === 'linux');
+    document.getElementById('os-mac-btn').classList.toggle('active', os === 'mac');
 }
 
 renderGcProfiles();
