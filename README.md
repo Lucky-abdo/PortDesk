@@ -49,6 +49,7 @@ pip install flask flask-socketio pyautogui opencv-python mss psutil pyperclip so
 
 ### 3. Run the server 
 **better run it by start file
+
 ** run gen cert so the server runs on https rather than http
 
 ```bash
