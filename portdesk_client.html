@@ -140,7 +140,7 @@ header{display:flex;align-items:center;justify-content:space-between;padding:8px
 .scr-set-row input[type=range]{flex:1;}
 .scr-sel{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 6px;font-size:11px;flex:1;}
 .screen-tp{flex:1;min-height:80px;background:var(--surface);border:1px solid var(--border);border-radius:8px;touch-action:none;position:relative;}
-.screen-tp::after{content:'touchpad — حرك الماوس هنا';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;font-family:'JetBrains Mono',monospace;pointer-events:none;}
+.screen-tp::after{content:var(--tp-hint-text,'touchpad — حرك الماوس هنا');position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:10px;font-family:'JetBrains Mono',monospace;pointer-events:none;}
 .scr-type-wrap{display:flex;gap:4px;flex-shrink:0;}
 .scr-kb-row{display:flex;gap:5px;flex-shrink:0;}
 .scr-kb-btn{flex:1;padding:8px 4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:10px;cursor:pointer;text-align:center;transition:all .15s;}
@@ -163,6 +163,10 @@ input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;
 .action-btn{padding:7px 12px;background:var(--accent)11;border:1px solid var(--accent)44;border-radius:8px;color:var(--accent);font-size:11px;cursor:pointer;font-family:'JetBrains Mono',monospace;}
 .action-btn.red{background:var(--accent2)11;border-color:var(--accent2)44;color:var(--accent2);}
 
+.mod-row{display:flex;gap:5px;padding:0 0 5px;flex-shrink:0;}
+.mod-btn{flex:1;padding:8px 4px;background:var(--surface);border:1.5px solid var(--border);border-radius:8px;color:var(--muted);font-size:11px;cursor:pointer;font-family:'JetBrains Mono',monospace;text-align:center;transition:all .15s;user-select:none;}
+.mod-btn.active{border-color:var(--accent);color:var(--accent);background:var(--accent)22;}
+.osk-key.mod-active{border-color:var(--accent);color:var(--accent);background:var(--accent)22;}
 /* OSK */
 .osk-overlay{display:none;position:fixed;inset:0;z-index:800;background:#0006;}
 .osk-overlay.show{display:block;}
@@ -427,16 +431,21 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
       <div class="gyro-axis"><div class="gyro-axis-label">Y (β)</div><div class="gyro-track"><div class="gyro-fill y" id="gyro-y"></div></div></div>
     </div>
     <div class="gyro-row">
-      <button class="gyro-toggle-btn" id="gyro-btn" onclick="toggleGyro()">🌀 جيرو: إيقاف</button>
-      <button class="ai-btn" id="ai-btn" onclick="toggleAI()">🧠 AI: إيقاف</button>
+      <button class="gyro-toggle-btn" id="gyro-btn" onclick="toggleGyro()">🌀 Gyro: Off</button>
+      <button class="ai-btn" id="ai-btn" onclick="toggleAI()">🧠 AI: Off</button>
       <button class="calib-btn" onclick="calibrate()">🎯</button>
-      <button class="calib-btn" id="kb-btn" title="كيبورد الموبايل">📱</button>
-      <button class="calib-btn" onclick="showOSK()" title="كيبورد على الشاشة">⌨️</button>
-      <button class="calib-btn" id="select-mode-btn" onclick="toggleSelectMode()" title="وضع التحديد">🔲</button>
+      <button class="calib-btn" id="kb-btn" data-title-ar="كيبورد الموبايل" data-title-en="Mobile keyboard">📱</button>
+      <button class="calib-btn" onclick="showOSK()" data-title-ar="كيبورد على الشاشة" data-title-en="On-screen keyboard">⌨️</button>
+      <button class="calib-btn" id="select-mode-btn" onclick="toggleSelectMode()" data-title-ar="وضع التحديد" data-title-en="Select mode">🔲</button>
     </div>
     <div class="ai-info" id="ai-info" style="display:none">sens: <span id="ai-sens">--</span> | drift: <span id="ai-drift">--</span> | samples: <span id="ai-samples">0</span></div>
     <div style="display:flex;gap:6px;flex-shrink:0;padding:0 0 6px">
       <div style="flex:1;display:flex;flex-direction:column;gap:5px">
+        <div class="mod-row">
+          <div class="mod-btn" id="mod-ctrl"  onclick="toggleMod('ctrl')">Ctrl</div>
+          <div class="mod-btn" id="mod-alt"   onclick="toggleMod('alt')">Alt</div>
+          <div class="mod-btn" id="mod-shift" onclick="toggleMod('shift')">Shift</div>
+        </div>
         <div class="click-row">
           <div class="click-btn" id="btn-left" onpointerdown="btnDown(event,'left')" onpointerup="btnUp('left')">🖱️<span class="lbl" data-i18n="btn_left">يسار</span></div>
           <div class="click-btn" id="btn-right" onpointerdown="btnDown(event,'right')" onpointerup="btnUp('right')">🖱️<span class="lbl" data-i18n="btn_right">يمين</span></div>
@@ -601,6 +610,7 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
       <button class="screen-btn" onclick="toggleScreenSettings()" style="background:var(--surface);border-color:var(--border);color:var(--muted)">⚙️</button>
       <button class="screen-btn" onclick="checkScreenStatus()" style="background:var(--surface);border-color:var(--border);color:var(--muted);font-size:10px">🔍</button>
       <div class="scr-stat" id="scr-stat">-- KB/s</div>
+      <div class="scr-stat" id="scr-fps-real" style="color:var(--accent);border-color:var(--accent)33">-- fps</div>
     </div>
 
     <!-- Stream settings (collapsible) -->
@@ -610,24 +620,25 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
         <select id="scr-res" onchange="applyStreamConfig()" class="scr-sel">
           <option value="240">240p</option>
           <option value="360">360p</option>
-          <option value="480" selected>480p</option>
-          <option value="720">720p</option>
+          <option value="480">480p</option>
+          <option value="720" selected>720p</option>
+          <option value="1080">1080p</option>
         </select>
       </div>
       <div class="scr-set-row">
         <label data-i18n="scr_quality">🎨 جودة</label>
-        <input type="range" id="scr-quality" min="10" max="95" value="65" oninput="document.getElementById('scr-q-val').textContent=this.value;applyStreamConfig()">
+        <input type="range" id="scr-quality" min="10" max="100" value="65" oninput="document.getElementById('scr-q-val').textContent=this.value;applyStreamConfig()">
         <span class="sv" id="scr-q-val">65</span>
       </div>
       <div class="scr-set-row">
         <label>🎞️ FPS</label>
-        <input type="range" id="scr-fps" min="5" max="30" value="30" oninput="document.getElementById('scr-fps-val').textContent=this.value;applyStreamConfig()">
+        <input type="range" id="scr-fps" min="5" max="60" value="30" oninput="document.getElementById('scr-fps-val').textContent=this.value;applyStreamConfig()">
         <span class="sv" id="scr-fps-val">30</span>
       </div>
       <div class="scr-set-row">
         <label data-i18n="scr_monitor">🖥️ شاشة</label>
         <select id="scr-monitor" onchange="setMonitor()" class="scr-sel">
-          <option value="1">شاشة 1</option>
+          <option value="1" data-i18n="monitor_1">شاشة 1</option>
         </select>
         <button class="feat-refresh-btn" onclick="loadMonitors()">🔄</button>
       </div>
@@ -643,9 +654,9 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
     <!-- Click + Scroll row -->
     <div style="display:flex;gap:6px;flex-shrink:0;">
       <div style="flex:1;display:flex;gap:5px;">
-        <div class="click-btn" onpointerdown="btnDown(event,'left')" onpointerup="btnUp('left')">🖱️<span class="lbl">يسار</span></div>
-        <div class="click-btn" onpointerdown="btnDown(event,'right')" onpointerup="btnUp('right')">🖱️<span class="lbl">يمين</span></div>
-        <div class="click-btn" onpointerdown="btnDown(event,'double')" onpointerup="btnUp('double')">⚡<span class="lbl">دبل</span></div>
+        <div class="click-btn" onpointerdown="btnDown(event,'left')" onpointerup="btnUp('left')">🖱️<span class="lbl" data-i18n="btn_left">يسار</span></div>
+        <div class="click-btn" onpointerdown="btnDown(event,'right')" onpointerup="btnUp('right')">🖱️<span class="lbl" data-i18n="btn_right">يمين</span></div>
+        <div class="click-btn" onpointerdown="btnDown(event,'double')" onpointerup="btnUp('double')">⚡<span class="lbl" data-i18n="btn_double">دبل</span></div>
       </div>
       <div class="scroll-col" style="flex-shrink:0;width:46px;">
         <div class="scroll-btn" onpointerdown="startScroll(1)" onpointerup="stopScroll()">🔼</div>
@@ -663,7 +674,7 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
     </div>
     <!-- Visible type input (shown/hidden on demand) -->
     <div id="scr-type-wrap" style="display:none;gap:4px;flex-shrink:0;">
-      <input type="text" id="scr-type-input" inputmode="text" placeholder="اكتب هنا..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      <input type="text" id="scr-type-input" inputmode="text" data-i18n-ph="type_here_ph" placeholder="اكتب هنا..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
         style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--accent)44;border-radius:8px;padding:8px;font-size:14px;outline:none;">
       <button onclick="sk('enter')" style="padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;cursor:pointer;">↵</button>
     </div>
@@ -673,24 +684,24 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
 
 <!-- Explorer Context Menu -->
 <div class="exp-ctx-menu" id="exp-ctx-menu">
-  <div class="exp-ctx-item" onclick="ctxOpen()">📂 <span>فتح</span></div>
+  <div class="exp-ctx-item" onclick="ctxOpen()">📂 <span data-i18n="ctx_open">فتح</span></div>
   <div class="exp-ctx-sep"></div>
-  <div class="exp-ctx-item" onclick="ctxCopy()">📋 <span>نسخ</span></div>
-  <div class="exp-ctx-item" onclick="ctxCut()">✂️ <span>قص</span></div>
-  <div class="exp-ctx-item" id="ctx-paste-item" onclick="ctxPaste()" style="display:none">📌 <span>لصق</span></div>
+  <div class="exp-ctx-item" onclick="ctxCopy()">📋 <span data-i18n="ctx_copy">نسخ</span></div>
+  <div class="exp-ctx-item" onclick="ctxCut()">✂️ <span data-i18n="ctx_cut">قص</span></div>
+  <div class="exp-ctx-item" id="ctx-paste-item" onclick="ctxPaste()" style="display:none">📌 <span data-i18n="ctx_paste">لصق</span></div>
   <div class="exp-ctx-sep"></div>
-  <div class="exp-ctx-item" onclick="ctxRename()">✏️ <span>إعادة تسمية</span></div>
-  <div class="exp-ctx-item" onclick="ctxShortcut()">🔗 <span>إنشاء اختصار</span></div>
+  <div class="exp-ctx-item" onclick="ctxRename()">✏️ <span data-i18n="ctx_rename">إعادة تسمية</span></div>
+  <div class="exp-ctx-item" onclick="ctxShortcut()">🔗 <span data-i18n="ctx_shortcut">إنشاء اختصار</span></div>
   <div class="exp-ctx-sep"></div>
-  <div class="exp-ctx-item" onclick="ctxProperties()">ℹ️ <span>Properties</span></div>
+  <div class="exp-ctx-item" onclick="ctxProperties()">ℹ️ <span data-i18n="ctx_properties">Properties</span></div>
   <div class="exp-ctx-sep"></div>
-  <div class="exp-ctx-item red" onclick="ctxDelete()">🗑️ <span>حذف</span></div>
+  <div class="exp-ctx-item red" onclick="ctxDelete()">🗑️ <span data-i18n="ctx_delete">حذف</span></div>
 </div>
 
 
 <!-- Floating Keyboard -->
 <div class="kb-float" id="kb-float">
-  <input type="text" id="kb-float-input" placeholder="اكتب هنا..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <input type="text" id="kb-float-input" data-i18n-ph="type_here_ph" placeholder="اكتب هنا..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
   <button class="kb-float-close" onclick="closeKbFloat()">✕</button>
 </div>
 
@@ -699,10 +710,10 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
 <div class="osk-panel" id="osk-panel">
   <div class="osk-header">
     <span id="osk-lang-label">EN</span>
-    <button class="osk-lang-btn" onclick="toggleOSKLang()">🌐 تبديل</button>
+    <button class="osk-lang-btn" id="osk-lang-btn" onclick="toggleOSKLang()" data-i18n="osk_switch">🌐 تبديل</button>
     <button class="osk-close" onclick="closeOSK()">×</button>
   </div>
-  <input type="text" class="osk-input" id="osk-input" placeholder="اكتب هنا..." inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+  <input type="text" class="osk-input" id="osk-input" data-i18n-ph="type_here_ph" placeholder="اكتب هنا..." inputmode="none" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
   <div class="osk-rows" id="osk-rows"></div>
 </div>
 <input class="hidden-input" id="hidden-input" type="text" inputmode="text">
@@ -716,10 +727,12 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
       <div class="setting-row"><label data-i18n="set_gsens">🌀 حساسية الجيرو</label><input id="sl-gs" type="range" min="2" max="60" value="12" oninput="gyroSens=+this.value;document.getElementById('sv-gs').textContent=this.value;saveAllSettings()"><span class="sv" id="sv-gs">12</span></div>
       <div class="setting-row"><label>💀 Dead Zone</label><input id="sl-dz" type="range" min="0" max="50" value="4" oninput="deadZone=+this.value;document.getElementById('sv-dz').textContent=this.value;saveAllSettings()"><span class="sv" id="sv-dz">4</span></div>
       <div class="setting-row"><label data-i18n="set_scroll">📜 سرعة السكرول</label><input id="sl-sc" type="range" min="1" max="50" value="5" oninput="scrollSpeed=+this.value;document.getElementById('sv-sc').textContent=this.value;saveAllSettings()"><span class="sv" id="sv-sc">5</span></div>
+      <div class="setting-row"><label data-i18n="set_rclick_delay">🖱️ مهلة كليك يمين</label><input id="sl-lp" type="range" min="100" max="5000" value="600" oninput="lpDelay=+this.value;document.getElementById('sv-lp').textContent=(this.value/1000).toFixed(1)+'s';saveAllSettings()"><span class="sv" id="sv-lp">0.6s</span></div>
     </div>
     <div class="setting-group">
       <div class="sg-title">FEEDBACK</div>
       <div class="setting-row"><label>📳 Haptic</label><div class="toggle" id="tgl-haptic" onclick="tgl('haptic')"></div></div>
+      <div class="setting-row"><label data-i18n="set_vib_str">💪 قوة الاهتزاز</label><input id="sl-vib" type="range" min="10" max="400" value="100" oninput="vibStrength=+this.value/100;document.getElementById('sv-vib').textContent=this.value+'%';saveAllSettings()"><span class="sv" id="sv-vib">100%</span></div>
       <div class="setting-row"><label>🔊 Sound</label><div class="toggle" id="tgl-sound" onclick="tgl('sound')"></div></div>
     </div>
     <div class="setting-group">
@@ -739,13 +752,13 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
     </div>
     <div class="setting-group">
       <div class="sg-title">NETWORK SECURITY</div>
-      <div class="setting-row"><label data-i18n="set_wl_add">📱 إضافة هذا الجهاز للقايمة البيضا</label><button class="action-btn" onclick="addToWhitelist()" data-i18n="btn_add">إضافة</button></div>
-      <div class="setting-row"><label data-i18n="set_wl_clr">🗑️ مسح القايمة البيضا</label><button class="action-btn red" onclick="clearWhitelist()" data-i18n="btn_clear">مسح</button></div>
+      <div class="setting-row" id="wl-request-row"><label data-i18n="set_wl_add">📱 إضافة هذا الجهاز للقايمة البيضا</label><button class="action-btn" onclick="requestWhitelist()" data-i18n="btn_add">إضافة</button></div>
+      <div class="setting-row" id="wl-remove-row" style="display:none"><label data-i18n="set_wl_remove">🗑️ إزالة نفسي من القايمة البيضا</label><button class="action-btn red" onclick="removeSelfFromWhitelist()" data-i18n="btn_remove">إزالة</button></div>
       <div id="whitelist-display" style="font-size:10px;color:var(--muted);padding:6px 12px;font-family:'JetBrains Mono',monospace;"></div>
     </div>
     <div class="setting-group">
       <div class="sg-title">AI GESTURE RESET</div>
-      <div class="setting-row"><label data-i18n="set_ai_reset">🧠 إعادة تعلم AI</label><button class="action-btn red" onclick="resetAI()">إعادة</button></div>
+      <div class="setting-row"><label data-i18n="set_ai_reset">🧠 إعادة تعلم AI</label><button class="action-btn red" onclick="resetAI()" data-i18n="btn_reset">إعادة</button></div>
     </div>
     <div class="setting-group">
       <div class="sg-title">APPEARANCE</div>
@@ -787,18 +800,18 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
       <button class="exp-tool-btn" onclick="expRefresh()">🔄</button>
       <button class="exp-tool-btn" onclick="expMkdir()">📁+</button>
       <button class="exp-tool-btn" onclick="expMkfile()">📄+</button>
-      <button class="exp-tool-btn accent" id="exp-paste-btn" onclick="ctxPaste()" style="display:none">📌 لصق</button>
+      <button class="exp-tool-btn accent" id="exp-paste-btn" onclick="ctxPaste()" style="display:none" data-i18n="exp_paste">📌 لصق</button>
       <div style="flex:1"></div>
       <span class="exp-sel-count" id="exp-sel-count" style="display:none"></span>
       <button class="exp-tool-btn accent" id="exp-dl-btn" onclick="expDownload()" style="display:none">⬇</button>
-      <label class="exp-tool-btn accent" style="cursor:pointer">⬆ رفع<input type="file" id="exp-upload-input" multiple style="display:none" onchange="expUpload(this.files)"></label>
+      <label class="exp-tool-btn accent" style="cursor:pointer"><span data-i18n="exp_upload">⬆ رفع</span><input type="file" id="exp-upload-input" multiple style="display:none" onchange="expUpload(this.files)"></label>
     </div>
     <!-- Sort row -->
     <div class="exp-sort-row">
-      <button class="exp-sort-btn active" id="sort-name" onclick="expSetSort('name')">الاسم ↕</button>
-      <button class="exp-sort-btn" id="sort-date" onclick="expSetSort('date')">التاريخ ↕</button>
-      <button class="exp-sort-btn" id="sort-size" onclick="expSetSort('size')">الحجم ↕</button>
-      <button class="exp-sort-btn" id="sort-type" onclick="expSetSort('type')">النوع ↕</button>
+      <button class="exp-sort-btn active" id="sort-name" onclick="expSetSort('name')" data-i18n="sort_name">الاسم ↕</button>
+      <button class="exp-sort-btn" id="sort-date" onclick="expSetSort('date')" data-i18n="sort_date">التاريخ ↕</button>
+      <button class="exp-sort-btn" id="sort-size" onclick="expSetSort('size')" data-i18n="sort_size">الحجم ↕</button>
+      <button class="exp-sort-btn" id="sort-type" onclick="expSetSort('type')" data-i18n="sort_type">النوع ↕</button>
     </div>
     <!-- Upload progress -->
     <div id="exp-upload-progress" style="display:none">
@@ -808,11 +821,11 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
     <!-- Download progress -->
     <div class="exp-dl-progress" id="exp-dl-progress">
       <div class="feat-progress-bar"><div class="feat-progress-fill" id="exp-dl-fill"></div></div>
-      <div style="font-size:10px;color:var(--muted);text-align:center" id="exp-dl-status">جاري التحميل...</div>
+      <div style="font-size:10px;color:var(--muted);text-align:center" id="exp-dl-status" data-i18n="exp_loading">جاري التحميل...</div>
     </div>
     <!-- File list -->
     <div class="exp-list" id="exp-list">
-      <div class="exp-loading">جاري التحميل...</div>
+      <div class="exp-loading" data-i18n="exp_loading">جاري التحميل...</div>
     </div>
   </div>
 </div>
@@ -825,18 +838,18 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
       <button class="action-btn" onclick="startMacroRecord()" id="macro-rec-btn" data-i18n="macro_rec">⏺ تسجيل</button>
     </div>
     <div id="macro-recording-ui" style="display:none;flex-direction:column;gap:6px">
-      <div class="clip-box" id="macro-steps-preview" style="min-height:60px;font-size:10px;font-family:'JetBrains Mono',monospace">لا يوجد خطوات بعد...</div>
+      <div class="clip-box" id="macro-steps-preview" style="min-height:60px;font-size:10px;font-family:'JetBrains Mono',monospace" data-i18n="macro_no_steps">لا يوجد خطوات بعد...</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap">
-        <button class="feat-macro-add" onclick="macroAddClick('left')">🖱 كليك</button>
-        <button class="feat-macro-add" onclick="macroAddClick('right')">🖱 يمين</button>
-        <button class="feat-macro-add" onclick="macroAddClick('double')">⚡ دبل</button>
-        <button class="feat-macro-add" onclick="macroAddKey()">⌨ مفتاح</button>
-        <button class="feat-macro-add" onclick="macroAddType()">✏ نص</button>
-        <button class="feat-macro-add" onclick="macroAddDelay()">⏱ انتظر</button>
+        <button class="feat-macro-add" onclick="macroAddClick('left')" data-i18n="macro_click">🖱 كليك</button>
+        <button class="feat-macro-add" onclick="macroAddClick('right')" data-i18n="macro_right">🖱 يمين</button>
+        <button class="feat-macro-add" onclick="macroAddClick('double')" data-i18n="macro_double">⚡ دبل</button>
+        <button class="feat-macro-add" onclick="macroAddKey()" data-i18n="macro_key">⌨ مفتاح</button>
+        <button class="feat-macro-add" onclick="macroAddType()" data-i18n="macro_type">✏ نص</button>
+        <button class="feat-macro-add" onclick="macroAddDelay()" data-i18n="macro_delay">⏱ انتظر</button>
       </div>
       <div style="display:flex;gap:6px">
-        <input id="macro-name-input" placeholder="اسم الماكرو..." style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px;font-size:12px;outline:none">
-        <button class="action-btn" onclick="saveMacro()">💾 حفظ</button>
+        <input id="macro-name-input" data-i18n-ph="macro_name_ph" placeholder="اسم الماكرو..." style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px;font-size:12px;outline:none">
+        <button class="action-btn" onclick="saveMacro()" data-i18n="macro_save">💾 حفظ</button>
         <button class="action-btn red" onclick="cancelMacroRecord()">✖</button>
       </div>
     </div>
@@ -850,16 +863,16 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
     <div class="task-toolbar">
       <span style="font-size:11px;color:var(--muted)" data-i18n="tasks_title">العمليات الجارية</span>
       <div style="flex:1"></div>
-      <button class="exp-tool-btn" onclick="loadTasks()">🔄 تحديث</button>
+      <button class="exp-tool-btn" onclick="loadTasks()" data-i18n="tasks_refresh">🔄 تحديث</button>
       <button class="exp-tool-btn accent" id="tasks-auto-btn" onclick="toggleTasksAuto()" data-i18n="tasks_auto">▶ تلقائي</button>
     </div>
     <div class="task-header">
-      <span style="flex:1">الاسم</span>
+      <span style="flex:1" data-i18n="tasks_col_name">الاسم</span>
       <span style="width:42px;text-align:right">CPU</span>
       <span style="width:50px;text-align:right">RAM</span>
       <span style="width:40px"></span>
     </div>
-    <div class="task-list" id="task-list"><div class="exp-loading">اضغط تحديث لتحميل العمليات</div></div>
+    <div class="task-list" id="task-list"><div class="exp-loading" data-i18n="tasks_press_refresh">اضغط تحديث لتحميل العمليات</div></div>
   </div>
 </div>
 
@@ -872,7 +885,7 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
     </div>
     <div style="display:flex;gap:6px;flex-shrink:0">
       <input type="time" id="sched-time" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;outline:none">
-      <input type="text" id="sched-name" placeholder="اسم المهمة" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;outline:none">
+      <input type="text" id="sched-name" data-i18n-ph="sched_name_ph" placeholder="اسم المهمة" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;outline:none">
     </div>
     <div style="display:flex;gap:6px;flex-shrink:0;align-items:center">
       <select id="sched-macro" style="flex:1;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px;font-size:12px;outline:none">
@@ -881,7 +894,7 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
       <button class="action-btn" onclick="addScheduled()" data-i18n="btn_add2">+ إضافة</button>
     </div>
     <div class="task-list" id="sched-list" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:4px">
-      <div class="exp-loading">لا يوجد مهام مجدولة</div>
+      <div class="exp-loading" data-i18n="sched_no_tasks">لا يوجد مهام مجدولة</div>
     </div>
   </div>
 </div>
@@ -896,7 +909,7 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
       <button class="exp-tool-btn" onclick="refreshLog()">🔄</button>
       <button class="exp-tool-btn" style="color:var(--accent2)" onclick="clearCurrentLog()">🗑</button>
     </div>
-    <div class="log-list" id="log-list"><div style="color:var(--muted);text-align:center;padding:20px;font-size:11px">لا يوجد أحداث</div></div>
+    <div class="log-list" id="log-list"><div style="color:var(--muted);text-align:center;padding:20px;font-size:11px" data-i18n="log_no_events">لا يوجد أحداث</div></div>
     <div class="log-list" id="client-log-list" style="display:none"></div>
   </div>
 </div>
@@ -904,19 +917,19 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
 <!-- CONTROLLER EDITOR -->
 <div id="ctrl-editor">
   <div id="ctrl-editor-header">
-    <span id="ctrl-editor-title">✏️ تحرير — <span id="ctrl-editor-profile"></span></span>
+    <span id="ctrl-editor-title">✏️ <span data-i18n="gc_edit">تحرير</span> — <span id="ctrl-editor-profile"></span></span>
     <div style="display:flex;gap:8px;margin-right:auto">
       <button class="ctrl-editor-btn" id="ctrl-type-ps-btn"  onclick="editorSetType('ps')">PS</button>
       <button class="ctrl-editor-btn" id="ctrl-type-xbox-btn" onclick="editorSetType('xbox')">Xbox</button>
     </div>
-    <button class="ctrl-editor-btn save" onclick="saveCtrlLayout()">💾 حفظ</button>
+    <button class="ctrl-editor-btn save" onclick="saveCtrlLayout()" data-i18n="gc_save">💾 حفظ</button>
     <button class="ctrl-editor-btn cancel" onclick="cancelCtrlEdit()">✖</button>
   </div>
   <div id="ctrl-editor-body">
     <div id="ctrl-palette">
       <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:4px">
-        <span class="palette-title">Palette ← اسحب</span>
-        <span style="font-size:9px;color:var(--accent);font-family:monospace">scroll →</span>
+        <span class="palette-title" data-i18n="gc_palette">Palette ← اسحب</span>
+        <span style="font-size:9px;color:var(--accent);font-family:monospace" data-i18n="gc_scroll">scroll →</span>
       </div>
       <div id="ctrl-palette-btns"></div>
     </div>
@@ -932,7 +945,7 @@ body.gaming-mode .gc-main-grid{overflow:visible;}
   <div style="font-size:13px;font-weight:700;margin-bottom:10px;color:var(--accent)" data-i18n="keypicker_title">🎹 اختار مفتاح</div>
   <div id="key-picker-cats"></div>
   <div id="key-picker-keys"></div>
-  <button onclick="closeKeyPicker()" style="margin-top:10px;width:100%;padding:10px;background:var(--accent2)11;border:1px solid var(--accent2)44;border-radius:8px;color:var(--accent2);cursor:pointer;font-size:12px">إلغاء</button>
+  <button onclick="closeKeyPicker()" data-i18n="osk_cancel" style="margin-top:10px;width:100%;padding:10px;background:var(--accent2)11;border:1px solid var(--accent2)44;border-radius:8px;color:var(--accent2);cursor:pointer;font-size:12px">إلغاء</button>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -966,17 +979,26 @@ var lastVal = "";
 var audioCtx = null;
 var toastTimer = null;
 var VIBRATIONS = { click:18, right_click:[30,20,30], double_click:[15,10,15,10,15], shortcut:28, scroll:8, key:12, error:[50,30,50,30,50] };
+var vibStrength = 1.0;
 function vibrateAction(type) {
     if (!hapticOn || !navigator.vibrate) return;
-    navigator.vibrate(VIBRATIONS[type] || 15);
+    var v = VIBRATIONS[type] || 15;
+    if (Array.isArray(v)) v = v.map(function(x){ return Math.round(x * vibStrength); });
+    else v = Math.round(v * vibStrength);
+    navigator.vibrate(v);
 }
-function vibrate(p) { if (hapticOn && navigator.vibrate) navigator.vibrate(p); }
+function vibrate(p) {
+    if (!hapticOn || !navigator.vibrate) return;
+    if (Array.isArray(p)) navigator.vibrate(p.map(function(x){ return Math.round(x * vibStrength); }));
+    else navigator.vibrate(Math.round(p * vibStrength));
+}
 
 // ── Settings Persistence ───────────────────────────────────────────────────────
 function saveAllSettings() {
     localStorage.setItem('portdesk_settings', JSON.stringify({
         touchSens, gyroSens, deadZone, scrollSpeed,
         hapticOn, soundOn, sleepOn, sleepTimeout,
+        vibStrength, lpDelay,
         currentProfile, ai: aiData,
         aiActive, gyroActive
     }));
@@ -986,7 +1008,7 @@ function loadAllSettings() {
     var raw = localStorage.getItem('portdesk_settings');
     if (!raw) return;
     var d;
-    try { d = JSON.parse(raw); } catch(e) { toast('⚠ إعدادات تالفة'); return; }
+    try { d = JSON.parse(raw); } catch(e) { toast(currentLang==='en'?'⚠ Corrupted settings':'⚠ إعدادات تالفة'); return; }
 
     touchSens     = d.touchSens     ?? touchSens;
     gyroSens      = d.gyroSens      ?? gyroSens;
@@ -996,6 +1018,8 @@ function loadAllSettings() {
     soundOn       = d.soundOn       ?? soundOn;
     sleepOn       = d.sleepOn       ?? sleepOn;
     sleepTimeout  = d.sleepTimeout  ?? sleepTimeout;
+    vibStrength   = d.vibStrength   ?? vibStrength;
+    lpDelay       = d.lpDelay       ?? lpDelay;
     currentProfile= d.currentProfile?? currentProfile;
     aiData        = d.ai            ?? aiData;
     aiActive      = d.aiActive      ?? aiActive;
@@ -1007,6 +1031,8 @@ function loadAllSettings() {
         ['sl-dz', deadZone,    'sv-dz', deadZone],
         ['sl-sc', scrollSpeed, 'sv-sc', scrollSpeed],
         ['sl-sl', sleepTimeout,'sv-sl', sleepTimeout + 's'],
+        ['sl-vib', Math.round(vibStrength*100), 'sv-vib', Math.round(vibStrength*100)+'%'],
+        ['sl-lp', lpDelay, 'sv-lp', (lpDelay/1000).toFixed(1)+'s'],
     ];
     sliders.forEach(function(s) {
         var el = document.getElementById(s[0]);
@@ -1021,11 +1047,11 @@ function loadAllSettings() {
 
     var aiBtn = document.getElementById('ai-btn');
     aiBtn.classList.toggle('on', aiActive);
-    aiBtn.textContent = aiActive ? '🧠 AI: تشغيل' : '🧠 AI: إيقاف';
+    aiBtn.textContent = aiActive ? (currentLang==='en'?'🧠 AI: On':'🧠 AI: تشغيل') : (currentLang==='en'?'🧠 AI: Off':'🧠 AI: إيقاف');
     document.getElementById('ai-info').style.display = aiActive ? 'block' : 'none';
 
     var gyroBtn = document.getElementById('gyro-btn');
-    gyroBtn.textContent = gyroActive ? '🌀 جيرو: تشغيل' : '🌀 جيرو: إيقاف';
+    gyroBtn.textContent = gyroActive ? (currentLang==='en'?'🌀 Gyro: On':'🌀 جيرو: تشغيل') : (currentLang==='en'?'🌀 Gyro: Off':'🌀 جيرو: إيقاف');
     gyroBtn.classList.toggle('on', gyroActive);
     document.getElementById('gyro-bar').classList.toggle('show', gyroActive);
 
@@ -1034,16 +1060,16 @@ function loadAllSettings() {
         document.getElementById('profile-badge').textContent = currentProfile;
     }
     updateAIDisplay();
-    toast('✅ تم تحميل الإعدادات');
+    toast(currentLang==='en'?'✅ Settings loaded':'✅ تم تحميل الإعدادات');
 }
 
 
-// ── Socket ─────────────────────────────────────────────────────────────────────
+// ── Socket (deferred) ──────────────────────────────────────────────────────────
 var socket = io({ transports: ['websocket', 'polling'] });
 socket.on('connect', function() {
     document.getElementById('status-pill').className = 'status-pill on';
     document.getElementById('status-text').textContent = '✓';
-    toast('✅ متصل');
+    toast(currentLang==='en'?'✅ Connected':'✅ متصل');
     measureLatency();
 });
 socket.on('disconnect', function() {
@@ -1070,6 +1096,7 @@ function switchTab(id) {
     var idx = tabIds.indexOf(id);
     if (idx >= 0) document.querySelectorAll('.tab')[idx].classList.add('active');
     if (id !== 'screen') stopScreen();
+    if (id === 'screen') setTimeout(function() { _lastFrameW = 0; }, 50);
     if (id === 'sched') loadScheduled();
     var fst = document.getElementById('fs-toggle');
     if (fst) fst.style.display = id === 'gaming' ? 'block' : 'none';
@@ -1130,13 +1157,17 @@ function checkPIN() {
     if (savedPINHash) document.getElementById('pin-screen').classList.add('show');
     else startSleepTimer();
 }
+var pinLocked = false;
+
 function pinInput(n) {
+    if (pinLocked) return;
     if (pinBuffer.length >= 4) return;
     pinBuffer.push(n);
     for (var i = 0; i < pinBuffer.length; i++) document.getElementById('pd' + i).classList.add('filled');
     if (pinBuffer.length === 4) pinConfirm();
 }
 function pinClear() {
+    if (pinLocked) return;
     pinBuffer.pop();
     for (var i = 0; i < 4; i++) document.getElementById('pd' + i).classList.remove('filled');
     for (var i = 0; i < pinBuffer.length; i++) document.getElementById('pd' + i).classList.add('filled');
@@ -1145,23 +1176,27 @@ function pinConfirm() {
     var entered = pinBuffer.join('');
     _sha256(savedPINSalt + entered).then(function(hash) {
         var success = (hash === savedPINHash);
-        reportPinResult(success);
-        if (success) {
-            document.getElementById('pin-screen').classList.remove('show');
-            document.getElementById('pin-error').textContent = '';
-            startSleepTimer();
-        } else {
-            document.getElementById('pin-error').textContent = 'PIN غلط';
+        if (!success) {
+            document.getElementById('pin-error').textContent = currentLang==='en'?'Wrong PIN':'PIN غلط';
             pinBuffer = [];
             for (var i = 0; i < 4; i++) document.getElementById('pd' + i).classList.remove('filled');
             vibrateAction('error');
+            reportPinResult(false, null);
+        } else {
+            reportPinResult(true, function(allowed) {
+                if (allowed) {
+                    document.getElementById('pin-screen').classList.remove('show');
+                    document.getElementById('pin-error').textContent = '';
+                    startSleepTimer();
+                }
+            });
         }
     });
 }
 function setNewPIN() {
-    var p = prompt('PIN جديد (4 أرقام):');
+    var p = prompt(currentLang==='en'?'New PIN (4 digits):':'PIN جديد (4 أرقام):');
     if (!p) return;
-    if (!/^\d{4}$/.test(p)) { toast('❌ 4 أرقام فقط'); return; }
+    if (!/^\d{4}$/.test(p)) { toast(currentLang==='en'?'❌ 4 digits only':'❌ 4 أرقام فقط'); return; }
     var salt = _genSalt();
     _sha256(salt + p).then(function(hash) {
         localStorage.setItem('portdesk_pin_salt', salt);
@@ -1169,7 +1204,7 @@ function setNewPIN() {
         localStorage.removeItem('portdesk_pin');
         savedPINSalt = salt;
         savedPINHash = hash;
-        toast('✅ تم حفظ PIN');
+        toast(currentLang==='en'?'✅ PIN saved':'✅ تم حفظ PIN');
     });
 }
 function clearPIN() {
@@ -1177,7 +1212,7 @@ function clearPIN() {
     localStorage.removeItem('portdesk_pin_salt');
     localStorage.removeItem('portdesk_pin');
     savedPINHash = null; savedPINSalt = null;
-    toast('🔓 تم إلغاء PIN');
+    toast(currentLang==='en'?'🔓 PIN removed':'🔓 تم إلغاء PIN');
 }
 
 // ── Profile ────────────────────────────────────────────────────────────────────
@@ -1215,7 +1250,7 @@ function playTone(freq, dur) {
     var o = audioCtx.createOscillator(), g = audioCtx.createGain();
     o.connect(g); g.connect(audioCtx.destination);
     o.frequency.value = freq;
-    g.gain.setValueAtTime(.35, audioCtx.currentTime);
+    g.gain.setValueAtTime(.8, audioCtx.currentTime);
     g.gain.exponentialRampToValueAtTime(.001, audioCtx.currentTime + dur);
     o.start(); o.stop(audioCtx.currentTime + dur);
 }
@@ -1240,6 +1275,7 @@ function tgl(name) {
 // ── Touchpad ───────────────────────────────────────────────────────────────────
 var tp = document.getElementById('touchpad');
 var touches = {}, lastPos = null, moved = false, lpTimer = null;
+var lpDelay = 600;
 
 tp.addEventListener('touchstart', function(e) {
     e.preventDefault(); startSleepTimer();
@@ -1250,8 +1286,8 @@ tp.addEventListener('touchstart', function(e) {
             socket.emit('selector_start', {});
         } else {
             lpTimer = setTimeout(function() {
-                if (!moved) { socket.emit('click', { type:'right' }); rippleAt(lastPos.x, lastPos.y); vibrateAction('right_click'); toast('🖱️ كليك يمين'); }
-            }, 600);
+                if (!moved) { socket.emit('click', { type:'right' }); rippleAt(lastPos.x, lastPos.y); vibrateAction('right_click'); toast(currentLang==='en'?'🖱️ Right click':'🖱️ كليك يمين'); }
+            }, lpDelay);
         }
     }
 }, { passive:false });
@@ -1313,6 +1349,7 @@ function btnDown(e, type) {
     var el = document.getElementById('btn-' + type);
     if (el) el.classList.add('pressed');
     socket.emit('click', { type: type });
+    releaseMods();
     vibrateAction(type === 'double' ? 'double_click' : type === 'right' ? 'right_click' : 'click');
     playTone(700, .04);
 }
@@ -1321,6 +1358,7 @@ function btnUp(type) {
     if (el) el.classList.remove('pressed');
 }
 function startScroll(dir) {
+    vibrateAction('scroll');
     socket.emit('scroll', { dy: dir * scrollSpeed });
     scrollTimer = setInterval(function() { socket.emit('scroll', { dy: dir * scrollSpeed }); }, 110);
 }
@@ -1342,6 +1380,29 @@ var KEY_MAP_JS = {
     'f1':'f1','f2':'f2','f3':'f3','f4':'f4','f5':'f5','f6':'f6',
     'f7':'f7','f8':'f8','f9':'f9','f10':'f10','f11':'f11','f12':'f12'
 };
+
+// ── Modifier Keys ───────────────────────────────────────────────────────────────
+var _mods = { ctrl: false, alt: false, shift: false };
+function toggleMod(mod) {
+    vibrateAction('key');
+    _mods[mod] = !_mods[mod];
+    var el = document.getElementById('mod-' + mod);
+    if (el) el.classList.toggle('active', _mods[mod]);
+    if (_mods[mod]) socket.emit('key_down', { key: mod });
+    else             socket.emit('key_up',   { key: mod });
+}
+function releaseMods() {
+    ['ctrl','alt','shift'].forEach(function(mod) {
+        if (_mods[mod]) {
+            socket.emit('key_up', { key: mod });
+            _mods[mod] = false;
+            var el = document.getElementById('mod-' + mod);
+            if (el) el.classList.remove('active');
+            var oskEl = document.querySelector('.osk-key.mod-active');
+            if (oskEl) oskEl.classList.remove('mod-active');
+        }
+    });
+}
 function mapKeyJS(k) { return KEY_MAP_JS[k.toLowerCase()] || k.toLowerCase(); }
 function sc(keys) {
     socket.emit('shortcut', { keys: keys.map(function(k){ return mapKeyJS(k); }) });
@@ -1382,26 +1443,26 @@ function toggleGyro() {
     if (!gyroActive) {
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             DeviceOrientationEvent.requestPermission().then(function(r) {
-                if (r === 'granted') enableGyro(); else toast('❌ رُفض الإذن');
+                if (r === 'granted') enableGyro(); else toast(currentLang==='en'?'❌ Permission denied':'❌ رُفض الإذن');
             });
         } else if (typeof DeviceOrientationEvent !== 'undefined') {
             enableGyro();
         } else {
-            toast('❌ الجيرو غير مدعوم');
+            toast(currentLang==='en'?'❌ Gyro not supported':'❌ الجيرو غير مدعوم');
         }
     } else { disableGyro(); }
 }
 function enableGyro() {
     gyroActive = true; calibrate();
-    document.getElementById('gyro-btn').textContent = '🌀 جيرو: تشغيل';
+    document.getElementById('gyro-btn').textContent = currentLang==='en'?'🌀 Gyro: On':'🌀 جيرو: تشغيل';
     document.getElementById('gyro-btn').classList.add('on');
     document.getElementById('gyro-bar').classList.add('show');
-    toast('🌀 الجيروسكوب شغال');
+    toast(currentLang==='en'?'🌀 Gyro active':'🌀 الجيروسكوب شغال');
     saveAllSettings();
 }
 function disableGyro() {
     gyroActive = false;
-    document.getElementById('gyro-btn').textContent = '🌀 جيرو: إيقاف';
+    document.getElementById('gyro-btn').textContent = currentLang==='en'?'🌀 Gyro: Off':'🌀 جيرو: إيقاف';
     document.getElementById('gyro-btn').classList.remove('on');
     document.getElementById('gyro-bar').classList.remove('show');
     saveAllSettings();
@@ -1409,23 +1470,23 @@ function disableGyro() {
 function calibrate() {
     if (gyroActive) {
         calibB = lastB; calibG = lastG;
-        toast('🎯 معايرة'); vibrateAction('key');
+        toast(currentLang==='en'?'🎯 Calibrated':'🎯 معايرة'); vibrateAction('key');
         return;
     }
     function _oneShotCalib(e) {
         lastB = e.beta || 0; lastG = e.gamma || 0;
         calibB = lastB; calibG = lastG;
-        toast('🎯 معايرة محفوظة'); vibrateAction('key');
+        toast(currentLang==='en'?'🎯 Calibration saved':'🎯 معايرة محفوظة'); vibrateAction('key');
     }
     if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
         DeviceOrientationEvent.requestPermission().then(function(r) {
             if (r === 'granted') window.addEventListener('deviceorientation', _oneShotCalib, { once: true });
-            else { calibB = 0; calibG = 0; toast('🎯 ضبط للصفر'); }
+            else { calibB = 0; calibG = 0; toast(currentLang==='en'?'🎯 Reset to zero':'🎯 ضبط للصفر'); }
         });
     } else if (typeof DeviceOrientationEvent !== 'undefined') {
         window.addEventListener('deviceorientation', _oneShotCalib, { once: true });
     } else {
-        calibB = 0; calibG = 0; toast('🎯 ضبط للصفر');
+        calibB = 0; calibG = 0; toast(currentLang==='en'?'🎯 Reset to zero':'🎯 ضبط للصفر');
     }
 }
 var lastGyroSend = 0;
@@ -1446,13 +1507,14 @@ window.addEventListener('deviceorientation', onGyro);
 
 // ── AI Gesture Learning ────────────────────────────────────────────────────────
 function toggleAI() {
+    vibrateAction('click');
     aiActive = !aiActive;
     var btn = document.getElementById('ai-btn');
     btn.classList.toggle('on', aiActive);
-    btn.textContent = aiActive ? '🧠 AI: تشغيل' : '🧠 AI: إيقاف';
+    btn.textContent = aiActive ? (currentLang==='en'?'🧠 AI: On':'🧠 AI: تشغيل') : (currentLang==='en'?'🧠 AI: Off':'🧠 AI: إيقاف');
     document.getElementById('ai-info').style.display = aiActive ? 'block' : 'none';
     if (aiActive) updateAIDisplay();
-    toast(aiActive ? '🧠 AI يتعلم' : '🧠 AI متوقف');
+    toast(aiActive ? (currentLang==='en'?'🧠 AI learning':'🧠 AI يتعلم') : (currentLang==='en'?'🧠 AI stopped':'🧠 AI متوقف'));
     saveAllSettings();
 }
 function recordAISample(beta, gamma, moved) {
@@ -1478,7 +1540,7 @@ function updateAIDisplay() {
 }
 function resetAI() {
     aiData = { samples:0, totalDrift:0, avgSens:12, avgDead:4, history:[] };
-    localStorage.removeItem('portdesk_ai'); gyroSens = 12; deadZone = 4; toast('🔄 AI اتمسح');
+    localStorage.removeItem('portdesk_ai'); gyroSens = 12; deadZone = 4; toast(currentLang==='en'?'🔄 AI reset':'🔄 AI اتمسح');
 }
 
 
@@ -1543,6 +1605,10 @@ var KEY_CATS = {
     'حروف':    'abcdefghijklmnopqrstuvwxyz'.split(''),
     'رموز':    ['`','-','=','[',']','\\',';',"'",'/',',','.'],
 };
+var KEY_CATS_EN = {
+    'أسهم':'Arrows','F-keys':'F-keys','خاص':'Special','مودفيير':'Modifier',
+    'ميديا':'Media','أرقام':'Numbers','حروف':'Letters','رموز':'Symbols'
+};
 
 // ── Default layouts ────────────────────────────────────────────────────────────
 var DEFAULT_LAYOUTS = {
@@ -1595,22 +1661,20 @@ function renderFromLayout() {
         el.addEventListener('pointerdown', function(ev) {
             ev.preventDefault();
             if (!k) return;
+            el.setPointerCapture(ev.pointerId);
             if      (k === 'scroll_up')   { socket.emit('scroll', {dy: 5}); return; }
             else if (k === 'scroll_down') { socket.emit('scroll', {dy:-5}); return; }
             else if (k.includes('+'))     socket.emit('shortcut', {keys: k.split('+')});
             else                          socket.emit('key_down', {key: mapKeyJS(k)});
             el.classList.add('pressed'); vibrateAction('click');
         });
-        el.addEventListener('pointerup', function() {
+        function _gcRelease() {
             if (!k || k === 'scroll_up' || k === 'scroll_down' || k.includes('+')) { el.classList.remove('pressed'); return; }
             socket.emit('key_up', {key: mapKeyJS(k)});
             el.classList.remove('pressed');
-        });
-        el.addEventListener('pointerleave', function() {
-            if (!k || k === 'scroll_up' || k === 'scroll_down' || k.includes('+')) { el.classList.remove('pressed'); return; }
-            socket.emit('key_up', {key: mapKeyJS(k)});
-            el.classList.remove('pressed');
-        });
+        }
+        el.addEventListener('pointerup',     _gcRelease);
+        el.addEventListener('pointercancel', _gcRelease);
         container.appendChild(el);
     });
 }
@@ -1631,7 +1695,7 @@ var _keyPickerCb   = null;
 var _activeKeyCat  = 'أسهم';
 
 function openCtrlEditor() {
-    if (!gcActive) { toast('❌ اختار بروفايل الأول'); return; }
+    if (!gcActive) { toast(currentLang==='en'?'❌ Select a profile first':'❌ اختار بروفايل الأول'); return; }
     _editorType   = gcProfiles[gcActive].type || gcType;
     var p         = gcProfiles[gcActive];
     _editorLayout = (p.layout && p.layout.length)
@@ -1667,7 +1731,7 @@ function saveCtrlLayout() {
     renderFromLayout();
     document.getElementById('ctrl-editor').classList.remove('show');
     if (document.fullscreenElement) document.exitFullscreen();
-    toast('✅ تم حفظ التخطيط');
+    toast(currentLang==='en'?'✅ Layout saved':'✅ تم حفظ التخطيط');
 }
 
 function editorSetType(t) {
@@ -1856,7 +1920,7 @@ function showKeyPicker(cb) {
     Object.keys(KEY_CATS).forEach(function(cat) {
         var b = document.createElement('div');
         b.className = 'kp-cat' + (cat===_activeKeyCat?' active':'');
-        b.textContent = cat;
+        b.textContent = (currentLang==='en' && KEY_CATS_EN[cat]) ? KEY_CATS_EN[cat] : cat;
         b.onclick = function() {
             _activeKeyCat = cat;
             document.querySelectorAll('.kp-cat').forEach(function(x){ x.classList.remove('active'); });
@@ -1896,7 +1960,7 @@ function renderGcProfiles() {
         d.onclick = function() { selectGamingProfile(name); };
         d.oncontextmenu = function(e) {
             e.preventDefault();
-            if (confirm('حذف ' + name + '؟')) {
+            if (confirm((currentLang==='en'?'Delete ':'حذف ') + name + '?')) {
                 delete gcProfiles[name];
                 if (gcActive === name) gcActive = null;
                 saveGcProfiles(); renderGcProfiles(); setControllerType(gcType);
@@ -1913,13 +1977,13 @@ function selectGamingProfile(name) {
     renderGcProfiles(); setControllerType(gcType);
 }
 function addGamingProfile() {
-    var name = prompt('اسم البروفايل (مثال: GTA5, Minecraft):'); if (!name) return;
+    var name = prompt(currentLang==='en'?'Profile name (e.g. GTA5, Minecraft):':'اسم البروفايل (مثال: GTA5, Minecraft):'); if (!name) return;
     gcProfiles[name] = { keys:{}, type:gcType }; gcActive = name;
     localStorage.setItem('gc_active', name); saveGcProfiles(); renderGcProfiles(); setControllerType(gcType);
 }
 function saveGamingProfile() {
-    if (!gcActive) { toast('❌ اختار بروفايل الأول'); return; }
-    saveGcProfiles(); toast('💾 تم حفظ ' + gcActive);
+    if (!gcActive) { toast(currentLang==='en'?'❌ Select a profile first':'❌ اختار بروفايل الأول'); return; }
+    saveGcProfiles(); toast('💾 ' + (currentLang==='en'?'Saved ':' تم حفظ ') + gcActive);
 }
 function saveGcProfiles() { localStorage.setItem('gc_profiles', JSON.stringify(gcProfiles)); }
 
@@ -1948,10 +2012,10 @@ function toggleGamingMode() {
     if (isGaming) {
         if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function(){});
         switchTab('gaming');
-        toast('🎮 وضع اللعب الكامل — اضغط الزر تاني للخروج');
+        toast(currentLang==='en'?'🎮 Full gaming mode — tap button to exit':'🎮 وضع اللعب الكامل — اضغط الزر تاني للخروج');
     } else {
         if (document.fullscreenElement) document.exitFullscreen();
-        toast('✅ رجعنا للوضع العادي');
+        toast(currentLang==='en'?'✅ Back to normal mode':'✅ رجعنا للوضع العادي');
     }
 }
 
@@ -1976,7 +2040,7 @@ var scrBytesAccum = 0, scrLastTime = Date.now();
 var screenActive = false;
 var _frameImg = new Image();
 var screenCanvas = document.getElementById('screen-canvas');
-var screenCtx = screenCanvas.getContext('2d');
+var screenCtx = null;
 
 function startScreen() {
     screenActive = true;
@@ -1985,13 +2049,15 @@ function startScreen() {
     document.getElementById('screen-start-btn').style.display = 'none';
     document.getElementById('screen-stop-btn').style.display = 'block';
     fetch('/screen/start', {method:'POST'}).then(function(r){ return r.json(); }).then(function(d){
-        if (d.ok) toast('📡 تشغيل الشاشة...');
-        else { toast('❌ فشل'); stopScreen(); }
+        if (d.ok) toast(currentLang==='en'?'📡 Starting screen...':'📡 تشغيل الشاشة...');
+        else { toast(currentLang==='en'?'❌ Failed':'❌ فشل'); stopScreen(); }
     }).catch(function(e){ toast('❌ ' + e); stopScreen(); });
 }
 function stopScreen() {
     if (!screenActive) return;
     screenActive = false;
+    if (_pendingBitmap) { try { _pendingBitmap.close(); } catch(e){} _pendingBitmap = null; }
+    _rafScheduled = false;
     fetch('/screen/stop', {method:'POST'}).catch(function(){});
     _frameImg.src = '';
     screenCanvas.style.display = 'none';
@@ -2000,6 +2066,7 @@ function stopScreen() {
     document.getElementById('screen-stop-btn').style.display = 'none';
     scrBytesAccum = 0; scrLastTime = Date.now();
     document.getElementById('scr-stat').textContent = '-- KB/s';
+    document.getElementById('scr-fps-real').textContent = '-- fps';
 }
 function checkScreenStatus() {
     fetch('/screen/status').then(function(r){ return r.json(); }).then(function(d) {
@@ -2052,6 +2119,7 @@ hiddenInput.addEventListener('keydown', function(e) {
 
 document.getElementById('kb-btn').addEventListener('touchstart', function(e) {
     e.preventDefault();
+    vibrateAction('click');
     showKbFloat();
 }, { passive: false });
 
@@ -2067,22 +2135,23 @@ var oskLayouts = {
         ['`','1','2','3','4','5','6','7','8','9','0','-','='],
         ['q','w','e','r','t','y','u','i','o','p','[',']','\\'],
         ['a','s','d','f','g','h','j','k','l',';',"'"],
-        ['z','x','c','v','b','n','m',',','.','/'],[' ']
+        ['z','x','c','v','b','n','m',',','.','/'],  [' ']
     ],
     ar: [
-        ['ذ','١','٢','٣','٤','٥','٦','٧','٨','٩','٠','-','='],
-        ['ض','ص','ث','ق','ف','غ','ع','ه','خ','ح','ج','د'],
-        ['ش','س','ي','ب','ل','ا','ت','ن','م','ك','ط'],
-        ['ئ','ء','ؤ','ر','لا','ى','ة','و','ز','ظ'],[' ']
+        ['=','-','٠','٩','٨','٧','٦','٥','٤','٣','٢','١','ذ'],
+        ['د','ج','ح','خ','ه','ع','غ','ف','ق','ث','ص','ض'],
+        ['ط','ك','م','ن','ت','ا','ل','ب','ي','س','ش'],
+        ['ظ','ز','و','ة','ى','لا','ر','ؤ','ء','ئ'],[' ']
     ]
 };
 function renderOSK() {
     var rows = document.getElementById('osk-rows'); rows.innerHTML = '';
+    rows.style.direction = oskLang === 'ar' ? 'rtl' : 'ltr';
     var layout = oskLayouts[oskLang];
     layout.forEach(function(row, ri) {
         var div = document.createElement('div'); div.className = 'osk-row';
         if (ri === layout.length - 1) {
-            var sp = document.createElement('button'); sp.className = 'osk-key xwide'; sp.textContent = 'مسافة';
+            var sp = document.createElement('button'); sp.className = 'osk-key xwide'; sp.textContent = currentLang==='en'?'space':'مسافة';
             sp.onclick = function() { oskSend(' '); }; div.appendChild(sp);
         } else {
             row.forEach(function(k) {
@@ -2095,14 +2164,15 @@ function renderOSK() {
         rows.appendChild(div);
     });
     var specRow = document.createElement('div'); specRow.className = 'osk-row';
-    ['⌫','⏎','⇧','Esc','Tab'].forEach(function(k) {
+    ['Ctrl','Alt','⌫','⏎','⇧','Esc','Tab'].forEach(function(k) {
         var btn = document.createElement('button'); btn.className = 'osk-key wide special'; btn.textContent = k;
         btn.onclick = function() {
-            if (k==='⌫')      socket.emit('key', { key:'backspace' });
-            else if (k==='⏎') socket.emit('key', { key:'enter' });
-            else if (k==='⇧') { oskShift = !oskShift; renderOSK(); }
+            if (k==='⌫')        socket.emit('key', { key:'backspace' });
+            else if (k==='⏎')   socket.emit('key', { key:'enter' });
+            else if (k==='⇧')   { oskShift = !oskShift; renderOSK(); }
             else if (k==='Esc') socket.emit('key', { key:'escape' });
             else if (k==='Tab') socket.emit('key', { key:'tab' });
+            else if (k==='Ctrl' || k==='Alt') { toggleMod(k.toLowerCase()); btn.classList.toggle('mod-active', _mods[k.toLowerCase()]); }
         };
         specRow.appendChild(btn);
     });
@@ -2114,8 +2184,10 @@ function oskSend(char) {
     lastVal = inp.value + char;
     inp.value = lastVal;
     socket.emit('type', { text: char });
+    releaseMods();
 }
 function showOSK() {
+    vibrateAction('click');
     renderOSK();
     document.getElementById('osk-overlay').classList.add('show');
     document.getElementById('osk-panel').classList.add('show');
@@ -2131,20 +2203,35 @@ function closeOSK() {
 function toggleOSKLang() { oskLang = oskLang === 'en' ? 'ar' : 'en'; renderOSK(); }
 
 // ── Security UI ────────────────────────────────────────────────────────────────
-function addToWhitelist() {
-    fetch('/security/whitelist/add', { method:'POST' }).then(function(r) { return r.json(); }).then(function(d) {
-        toast('✅ تم إضافة ' + d.ip); loadWhitelist();
-    });
+function requestWhitelist() {
+    fetch('/security/whitelist/request', { method:'POST' }).then(function(r) { return r.json(); }).then(function(d) {
+        if (d.error === 'blacklisted') { toast(currentLang==='en'?'⛔ This device is blacklisted':'⛔ هذا الجهاز محظور'); return; }
+        if (d.already) { toast(currentLang==='en'?'✅ Device already approved':'✅ الجهاز معتمد بالفعل'); loadWhitelist(); return; }
+        toast(currentLang==='en'?'⏳ Request sent — awaiting server approval':'⏳ تم إرسال الطلب — انتظر موافقة السيرفر');
+    }).catch(function() { toast(currentLang==='en'?'❌ Connection error':'❌ خطأ في الاتصال'); });
 }
-function clearWhitelist() {
-    if (confirm('مسح القايمة البيضا؟ هيحتاج كل جهاز يتضاف من الكوماند تاني')) {
-        fetch('/security/whitelist/clear', { method:'POST' }).then(function() { toast('🗑️ تم المسح'); loadWhitelist(); });
-    }
+function removeSelfFromWhitelist() {
+    if (!confirm(currentLang==='en'?'Remove yourself from whitelist? You will need server approval again to reconnect.':'إزالة نفسك من القايمة البيضا؟ هتحتاج موافقة السيرفر تاني للدخول')) return;
+    fetch('/security/whitelist/remove_self', { method:'POST' }).then(function() {
+        toast(currentLang==='en'?'🗑️ Removed from whitelist':'🗑️ تم إزالتك من القايمة البيضا'); loadWhitelist();
+    });
 }
 function loadWhitelist() {
     fetch('/security/whitelist').then(function(r) { return r.json(); }).then(function(d) {
         var el = document.getElementById('whitelist-display'); if (!el) return;
-        el.textContent = (!d.whitelist || !d.whitelist.length) ? 'القايمة فاضية — لازم إضافة الأجهزة من الكوماند' : '✓ ' + d.whitelist.join(' | ');
+        var reqRow = document.getElementById('wl-request-row');
+        var remRow = document.getElementById('wl-remove-row');
+        if (d.approved) {
+            el.textContent = '✅ ' + d.ip + (currentLang==='en'?' — Approved':' — معتمد');
+            el.style.color = 'var(--green)';
+            if (reqRow) reqRow.style.display = 'none';
+            if (remRow) remRow.style.display = '';
+        } else {
+            el.textContent = '⚠ ' + d.ip + (currentLang==='en'?' — Not approved, press Add to request':'  — غير معتمد، اضغط إضافة لطلب الموافقة');
+            el.style.color = 'var(--accent)';
+            if (reqRow) reqRow.style.display = '';
+            if (remRow) remRow.style.display = 'none';
+        }
     }).catch(function() {});
 }
 
@@ -2154,7 +2241,7 @@ function exportSettings() {
     var blob = new Blob([localStorage.getItem('portdesk_settings')], { type:'application/json' });
     var url = URL.createObjectURL(blob), a = document.createElement('a');
     a.href = url; a.download = 'portdesk_backup.json'; a.click();
-    toast('💾 تم تحميل الباك اب');
+    toast(currentLang==='en'?'💾 Backup loaded':'💾 تم تحميل الباك اب');
 }
 function importSettings(input) {
     var reader = new FileReader();
@@ -2162,8 +2249,8 @@ function importSettings(input) {
         try {
             var data = JSON.parse(e.target.result);
             localStorage.setItem('portdesk_settings', JSON.stringify(data));
-            loadAllSettings(); toast('✅ تم استيراد الباك اب');
-        } catch(err) { toast('❌ الملف تالف'); }
+            loadAllSettings(); toast(currentLang==='en'?'✅ Backup imported':'✅ تم استيراد الباك اب');
+        } catch(err) { toast(currentLang==='en'?'❌ Corrupted file':'❌ الملف تالف'); }
     };
     reader.readAsText(input.files[0]);
 }
@@ -2180,7 +2267,7 @@ function _expUpdateSelUI() {
     var btn   = document.getElementById('exp-dl-btn');
     var paste = document.getElementById('exp-paste-btn');
     if (expSelected.length) {
-        cnt.textContent = expSelected.length + ' محدد';
+        cnt.textContent = expSelected.length + (currentLang==='en'?' selected':' محدد');
         cnt.style.display = 'block';
         btn.style.display = 'block';
     } else {
@@ -2191,6 +2278,7 @@ function _expUpdateSelUI() {
 }
 
 function expGoUp() {
+    vibrateAction('click');
     if (!expCurrentPath) return;
     var sep  = expCurrentPath.includes('\\') ? '\\' : '/';
     var parts = expCurrentPath.replace(/[/\\]$/,'').split(sep);
@@ -2200,11 +2288,12 @@ function expGoUp() {
     else expGoto(parent + (parent.endsWith(':') ? sep : ''));
 }
 
-function expRefresh() { expGoto(expCurrentPath); }
+function expRefresh() {
+    vibrateAction('click'); expGoto(expCurrentPath); }
 
 function _expRenderBreadcrumb(path) {
     var bc = document.getElementById('exp-breadcrumb');
-    var parts = [{ label:'🖥️ هذا الجهاز', path:'' }];
+    var parts = [{ label: currentLang==='en'?'🖥️ This PC':'🖥️ هذا الجهاز', path:'' }];
     if (path) {
         var sep = path.includes('\\') ? '\\' : '/';
         var segs = path.replace(/[/\\]$/,'').split(sep);
@@ -2224,6 +2313,7 @@ function _expRenderBreadcrumb(path) {
 }
 
 function expDownload() {
+    vibrateAction('click');
     if (!expSelected.length) return;
     if (expSelected.length === 1) {
         window.location.href = '/explorer/download?path=' + encodeURIComponent(expSelected[0]);
@@ -2240,19 +2330,19 @@ function expDownload() {
         var a = document.createElement('a'); a.href = url; a.download = 'pcc_files.zip'; a.click();
         URL.revokeObjectURL(url);
     });
-    toast('⬇ جاري التحميل...');
+    toast(currentLang==='en'?'⬇ Downloading...':'⬇ جاري التحميل...');
 }
 
 function expUpload(files) {
     if (!files || !files.length) return;
-    if (!expCurrentPath) { toast('❌ افتح مجلد الأول'); return; }
+    if (!expCurrentPath) { toast(currentLang==='en'?'❌ Open a folder first':'❌ افتح مجلد الأول'); return; }
     var prog   = document.getElementById('exp-upload-progress');
     var fill   = document.getElementById('exp-upload-fill');
     var status = document.getElementById('exp-upload-status');
     prog.style.display = 'block';
     var i = 0;
     function next() {
-        if (i >= files.length) { prog.style.display = 'none'; expRefresh(); toast('✅ تم الرفع'); return; }
+        if (i >= files.length) { prog.style.display = 'none'; expRefresh(); toast(currentLang==='en'?'✅ Upload complete':'✅ تم الرفع'); return; }
         var file = files[i++];
         status.textContent = file.name;
         var fd = new FormData();
@@ -2264,7 +2354,7 @@ function expUpload(files) {
             if (e.lengthComputable) fill.style.width = Math.round(e.loaded/e.total*100) + '%';
         };
         xhr.onload = function() { fill.style.width = '0%'; next(); };
-        xhr.onerror = function() { toast('❌ فشل: ' + file.name); next(); };
+        xhr.onerror = function() { toast(currentLang==='en'?'❌ Failed: ':'❌ فشل: ' + file.name); next(); };
         xhr.send(fd);
     }
     next();
@@ -2301,61 +2391,69 @@ socket.on('clipboard_update', function(d) {
 var macroSteps = [];
 
 function startMacroRecord() {
+    vibrateAction('click');
     macroSteps = [];
     document.getElementById('macro-recording-ui').style.display = 'flex';
     document.getElementById('macro-rec-btn').style.display = 'none';
-    document.getElementById('macro-steps-preview').textContent = 'لا يوجد خطوات بعد...';
+    document.getElementById('macro-steps-preview').textContent = currentLang==='en'?'No steps yet...':'لا يوجد خطوات بعد...';
 }
 function cancelMacroRecord() {
+    vibrateAction('click');
     macroSteps = [];
     document.getElementById('macro-recording-ui').style.display = 'none';
     document.getElementById('macro-rec-btn').style.display = 'block';
 }
 function _updateMacroPreview() {
     var el = document.getElementById('macro-steps-preview');
+    var en = currentLang==='en';
     el.textContent = macroSteps.length ? macroSteps.map(function(s,i){
-        if (s.type==='key')      return (i+1)+'. مفتاح: '+s.key;
-        if (s.type==='shortcut') return (i+1)+'. اختصار: '+s.keys.join('+');
-        if (s.type==='type')     return (i+1)+'. نص: "'+s.text+'"';
-        if (s.type==='click')    return (i+1)+'. كليك '+s.btn;
-        if (s.type==='delay')    return (i+1)+'. انتظار '+s.ms+'ms';
+        if (s.type==='key')      return (i+1)+(en?'. Key: ':'. مفتاح: ')+s.key;
+        if (s.type==='shortcut') return (i+1)+(en?'. Shortcut: ':'. اختصار: ')+s.keys.join('+');
+        if (s.type==='type')     return (i+1)+(en?'. Text: "':'. نص: "')+s.text+'"';
+        if (s.type==='click')    return (i+1)+(en?'. Click ':'. كليك ')+s.btn;
+        if (s.type==='delay')    return (i+1)+(en?'. Wait ':'. انتظار ')+s.ms+'ms';
         return (i+1)+'. '+s.type;
-    }).join('\n') : 'لا يوجد خطوات بعد...';
+    }).join('\n') : (en?'No steps yet...':'لا يوجد خطوات بعد...');
 }
 function macroAddClick(btn) {
+    vibrateAction('click');
     macroSteps.push({type:'click', btn:btn, delay:0.1});
-    _updateMacroPreview(); toast('➕ كليك ' + btn);
+    _updateMacroPreview(); toast(currentLang==='en'?'➕ Click '+btn:'➕ كليك ' + btn);
 }
 function macroAddKey() {
-    var k = prompt('اسم المفتاح (مثال: enter, space, f5):'); if (!k) return;
+    vibrateAction('click');
+    var k = prompt(currentLang==='en'?'Key name (e.g. enter, space, f5):':'اسم المفتاح (مثال: enter, space, f5):'); if (!k) return;
     macroSteps.push({type:'key', key:k.toLowerCase(), delay:0.1});
-    _updateMacroPreview(); toast('➕ مفتاح: ' + k);
+    _updateMacroPreview(); toast(currentLang==='en'?'➕ Key: ':'➕ مفتاح: ' + k);
 }
 function macroAddType() {
-    var t = prompt('النص:'); if (!t) return;
+    vibrateAction('click');
+    var t = prompt(currentLang==='en'?'Text:':'النص:'); if (!t) return;
     macroSteps.push({type:'type', text:t, delay:0.05});
-    _updateMacroPreview(); toast('➕ نص');
+    _updateMacroPreview(); toast(currentLang==='en'?'➕ Text':'➕ نص');
 }
 function macroAddDelay() {
-    var ms = parseInt(prompt('وقت الانتظار (ms):', '500')); if (isNaN(ms)) return;
+    vibrateAction('click');
+    var ms = parseInt(prompt(currentLang==='en'?'Wait duration (ms):':'وقت الانتظار (ms):', '500')); if (isNaN(ms)) return;
     macroSteps.push({type:'delay', ms:ms, delay:ms/1000});
-    _updateMacroPreview(); toast('➕ انتظار ' + ms + 'ms');
+    _updateMacroPreview(); toast(currentLang==='en'?'➕ Wait '+ms+'ms':'➕ انتظار ' + ms + 'ms');
 }
 function saveMacro() {
+    vibrateAction('shortcut');
     var name = document.getElementById('macro-name-input').value.trim();
-    if (!name) { toast('❌ أدخل اسم'); return; }
-    if (!macroSteps.length) { toast('❌ أضف خطوة على الأقل'); return; }
+    if (!name) { toast(currentLang==='en'?'❌ Enter a name':'❌ أدخل اسم'); return; }
+    if (!macroSteps.length) { toast(currentLang==='en'?'❌ Add at least one step':'❌ أضف خطوة على الأقل'); return; }
     fetch('/macros/save', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name, steps:macroSteps})})
-        .then(function(){ cancelMacroRecord(); loadMacros(); toast('✅ تم حفظ: ' + name); });
+        .then(function(){ cancelMacroRecord(); loadMacros(); toast(currentLang==='en'?'✅ Saved: ':'✅ تم حفظ: ' + name); });
 }
 function loadMacros() {
     fetch('/macros/list').then(function(r){ return r.json(); }).then(function(list) {
         var el = document.getElementById('macros-list');
-        if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">لا يوجد ماكروهات</div>'; return; }
+        if (!list.length) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;text-align:center;padding:20px">' + (currentLang==='en'?'No macros':'لا يوجد ماكروهات') + '</div>'; return; }
         el.innerHTML = list.map(function(name) {
             return '<div class="macro-item">' +
                 '<div class="macro-item-name">⚡ ' + name + '</div>' +
-                '<button class="file-item-btn" onclick="runMacro(\'' + name.replace(/'/g,"\\'") + '\')">▶ تشغيل</button>' +
+                '<button class="file-item-btn" onclick="runMacro(\'' + name.replace(/'/g,"\\'") + '\')">▶ ' + (currentLang==='en'?'Run':'تشغيل') + '</button>' +
                 '<button class="file-item-btn red" onclick="deleteMacro(\'' + name.replace(/'/g,"\\'") + '\')">🗑</button>' +
                 '</div>';
         }).join('');
@@ -2363,12 +2461,12 @@ function loadMacros() {
 }
 function runMacro(name) {
     fetch('/macros/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name})})
-        .then(function(){ toast('▶ تشغيل: ' + name); });
+        .then(function(){ toast(currentLang==='en'?'▶ Running: ':'▶ تشغيل: ' + name); });
 }
 function deleteMacro(name) {
-    if (!confirm('حذف ' + name + '؟')) return;
+    if (!confirm((currentLang==='en'?'Delete ':'حذف ') + name + '?')) return;
     fetch('/macros/delete', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name:name})})
-        .then(function(){ loadMacros(); toast('🗑 تم الحذف'); });
+        .then(function(){ loadMacros(); toast(currentLang==='en'?'🗑 Deleted':'🗑 تم الحذف'); });
 }
 
 // ── Multiple Monitors ──────────────────────────────────────────────────────────
@@ -2376,11 +2474,11 @@ function loadMonitors() {
     fetch('/monitors/list').then(function(r){ return r.json(); }).then(function(mons) {
         var sel = document.getElementById('scr-monitor');
         sel.innerHTML = '';
-        if (!mons.length) { sel.innerHTML = '<option value="1">شاشة 1</option>'; return; }
+        if (!mons.length) { sel.innerHTML = '<option value="1">' + (currentLang==='en'?'Screen 1':'شاشة 1') + '</option>'; return; }
         mons.forEach(function(m) {
             var opt = document.createElement('option');
             opt.value = m.index;
-            opt.textContent = 'شاشة ' + m.index + ' (' + m.w + '×' + m.h + ')';
+            opt.textContent = (currentLang==='en'?'Screen ':'شاشة ') + m.index + ' (' + m.w + '×' + m.h + ')';
             sel.appendChild(opt);
         });
     });
@@ -2388,19 +2486,19 @@ function loadMonitors() {
 function setMonitor() {
     var idx = parseInt(document.getElementById('scr-monitor').value);
     socket.emit('set_monitor', {index: idx});
-    toast('🖥️ شاشة ' + idx);
+    toast('🖥️ ' + (currentLang==='en'?'Monitor ':'شاشة ') + idx);
 }
 
 // ── Connection Alert ───────────────────────────────────────────────────────────
 var _connAlertTimer = null;
 socket.on('disconnect', function() {
     var el = document.getElementById('conn-alert');
-    el.textContent = '🔴 انقطع الاتصال بالسيرفر...';
+    el.textContent = currentLang==='en'?'🔴 Connection lost...':'🔴 انقطع الاتصال بالسيرفر...';
     el.className = 'lost';
 });
 socket.on('reconnect', function() {
     var el = document.getElementById('conn-alert');
-    el.textContent = '🟢 تم استعادة الاتصال';
+    el.textContent = currentLang==='en'?'🟢 Connection restored':'🟢 تم استعادة الاتصال';
     el.className = 'back';
     clearTimeout(_connAlertTimer);
     _connAlertTimer = setTimeout(function() { el.className = ''; el.style.display = 'none'; }, 3000);
@@ -2408,7 +2506,7 @@ socket.on('reconnect', function() {
 socket.on('connect', function() {
     var el = document.getElementById('conn-alert');
     if (el.className === 'lost') {
-        el.textContent = '🟢 تم استعادة الاتصال';
+        el.textContent = currentLang==='en'?'🟢 Connection restored':'🟢 تم استعادة الاتصال';
         el.className = 'back';
         clearTimeout(_connAlertTimer);
         _connAlertTimer = setTimeout(function() { el.className = ''; }, 3000);
@@ -2427,7 +2525,7 @@ function toggleTheme() { lightTheme = !lightTheme; applyTheme(); }
 // ── Language ───────────────────────────────────────────────────────────────────
 var currentLang = localStorage.getItem('pcc_lang') || 'ar';
 
-var I18N_EN = {"tab_touch": "Touch", "tab_keys": "Shortcuts", "tab_pres": "Present", "gaming": "Gaming", "tab_screen": "Screen", "tab_settings": "Settings", "tp_hint": "Touch Area", "tp_scroll_hint": "Two fingers = scroll", "btn_left": "Left", "btn_right": "Right", "btn_double": "Double", "sc_copy": "Copy", "sc_paste": "Paste", "sc_undo": "Undo", "sc_redo": "Redo", "sc_selall": "Select All", "sc_save": "Save", "sc_cut": "Cut", "sc_search": "Search", "sc_switch": "Switch", "sc_lock": "Lock", "sc_close": "Close", "sc_explorer": "Explorer", "sc_next": "Next", "sc_prev": "Prev", "sc_mute": "Mute", "sc_volup": "Vol +", "sc_voldn": "Vol -", "pres_start": "Start (F5)", "pres_up": "Up", "pres_down": "Down", "pres_black": "Black (B)", "pres_white": "White (W)", "pres_end": "End (Esc)", "gc_new": "+ New", "gc_fullmode": "🎮 Full Mode", "scr_hint": "Press Start to view screen", "scr_start": "▶ Start", "scr_stop": "⏹ Stop", "scr_res": "📐 Resolution", "scr_quality": "🎨 Quality", "scr_monitor": "🖥️ Monitor", "scr_cursor": "🎨 Cursor Color", "scr_type": "⌨️ Type", "set_tsens": "⚡ Touch Sensitivity", "set_gsens": "🌀 Gyro Sensitivity", "set_scroll": "📜 Scroll Speed", "set_sleep_en": "💤 Enable", "set_sleep_dur": "⏱️ Duration (sec)", "set_pin": "🔐 Set PIN", "set_pin_clr": "🔓 Clear PIN", "set_export": "💾 Export", "set_import": "📥 Import", "set_wl_add": "📱 Add this device to whitelist", "set_wl_clr": "🗑️ Clear whitelist", "set_ai_reset": "🧠 Reset AI Learning", "set_theme": "🌗 Day/Night Mode", "set_lang": "🌐 Language", "set_audio": "🔊 Remote Audio", "set_mic": "🎙️ Mobile Microphone", "streaming": "Streaming", "btn_set": "Set", "btn_cancel": "Cancel", "btn_export": "Export", "btn_import": "Import", "btn_add": "Add", "btn_clear": "Clear", "btn_reset": "Reset", "btn_start": "Start", "pin_prompt": "Enter PIN to continue", "sleep_msg": "Tap to wake", "gaming_mode_btn": "🎮 Gaming Mode", "exit_gaming": "Exit Gaming Mode ✖", "tasks_title": "Running Processes", "tasks_auto": "▶ Auto", "sched_title": "⏰ Scheduled Tasks", "sched_macro_placeholder": "Select macro...", "btn_add2": "+ Add", "log_title": "Log", "macros_title": "⚡ Macros", "macro_rec": "⏺ Record", "keypicker_title": "🎹 Pick a Key", "exp_root": "🖥️ This PC", "copy": "Copy", "paste": "Paste", "undo": "Undo", "redo": "Redo", "save": "Save", "cut": "Cut", "search": "Search", "select_all": "Select All", "switch_win": "Switch", "lock": "Lock", "close_win": "Close", "explorer_sc": "Explorer", "next_track": "Next", "prev_track": "Prev", "mute": "Mute", "vol_up": "Vol +", "vol_dn": "Vol -"};
+var I18N_EN = {"tab_touch": "Touch", "tab_keys": "Shortcuts", "tab_pres": "Present", "gaming": "Gaming", "tab_screen": "Screen", "tab_settings": "Settings", "tp_hint": "Touch Area", "tp_scroll_hint": "Two fingers = scroll", "btn_left": "Left", "btn_right": "Right", "btn_double": "Double", "sc_copy": "Copy", "sc_paste": "Paste", "sc_undo": "Undo", "sc_redo": "Redo", "sc_selall": "Select All", "sc_save": "Save", "sc_cut": "Cut", "sc_search": "Search", "sc_switch": "Switch", "sc_lock": "Lock", "sc_close": "Close", "sc_explorer": "Explorer", "sc_next": "Next", "sc_prev": "Prev", "sc_mute": "Mute", "sc_volup": "Vol +", "sc_voldn": "Vol -", "pres_start": "Start (F5)", "pres_up": "Up", "pres_down": "Down", "pres_black": "Black (B)", "pres_white": "White (W)", "pres_end": "End (Esc)", "gc_new": "+ New", "gc_fullmode": "🎮 Full Mode", "scr_hint": "Press Start to view screen", "scr_start": "▶ Start", "scr_stop": "⏹ Stop", "scr_res": "📐 Resolution", "scr_quality": "🎨 Quality", "scr_monitor": "🖥️ Monitor", "scr_cursor": "🎨 Cursor Color", "scr_type": "⌨️ Type", "set_tsens": "⚡ Touch Sensitivity", "set_gsens": "🌀 Gyro Sensitivity", "set_scroll": "📜 Scroll Speed", "set_sleep_en": "💤 Enable", "set_sleep_dur": "⏱️ Duration (sec)", "set_pin": "🔐 Set PIN", "set_pin_clr": "🔓 Clear PIN", "set_export": "💾 Export", "set_import": "📥 Import", "set_wl_add": "📱 Add this device to whitelist", "set_wl_clr": "🗑️ Clear whitelist", "set_ai_reset": "🧠 Reset AI Learning", "set_theme": "🌗 Day/Night Mode", "set_lang": "🌐 Language", "set_audio": "🔊 Remote Audio", "set_mic": "🎙️ Mobile Microphone", "streaming": "Streaming", "btn_set": "Set", "btn_cancel": "Cancel", "btn_export": "Export", "btn_import": "Import", "btn_add": "Add", "btn_clear": "Clear", "btn_reset": "Reset", "btn_start": "Start", "pin_prompt": "Enter PIN to continue", "sleep_msg": "Tap to wake", "gaming_mode_btn": "🎮 Gaming Mode", "exit_gaming": "Exit Gaming Mode ✖", "tasks_title": "Running Processes", "tasks_auto": "▶ Auto", "sched_title": "⏰ Scheduled Tasks", "sched_macro_placeholder": "Select macro...", "btn_add2": "+ Add", "log_title": "Log", "macros_title": "⚡ Macros", "macro_rec": "⏺ Record", "keypicker_title": "🎹 Pick a Key", "exp_root": "🖥️ This PC", "copy": "Copy", "paste": "Paste", "undo": "Undo", "redo": "Redo", "save": "Save", "cut": "Cut", "search": "Search", "select_all": "Select All", "switch_win": "Switch", "lock": "Lock", "close_win": "Close", "explorer_sc": "Explorer", "next_track": "Next", "prev_track": "Prev", "mute": "Mute", "vol_up": "Vol +", "vol_dn": "Vol -", "set_rclick_delay": "🖱️ Right Click Delay", "set_vib_str": "💪 Vibration Strength", "exp_upload": "⬆ Upload", "exp_paste": "📌 Paste", "sort_name": "Name ↕", "sort_date": "Date ↕", "sort_size": "Size ↕", "sort_type": "Type ↕", "macro_click": "🖱 Click", "macro_right": "🖱 Right", "macro_double": "⚡ Double", "macro_key": "⌨ Key", "macro_type": "✏ Type", "macro_delay": "⏱ Wait", "macro_save": "💾 Save", "macro_name_ph": "Macro name...", "macro_no_steps": "No steps yet...", "tasks_press_refresh": "Press Refresh to load processes", "tasks_no_procs": "No processes", "log_no_events": "No events", "tasks_auto_stop": "⏸ Stop", "exp_loading": "Loading...", "tasks_col_name": "Name", "sched_name_ph": "Task name", "sched_no_tasks": "No scheduled tasks", "gc_edit": "Edit", "gc_save": "💾 Save", "gc_palette": "Palette ← Drag", "gc_scroll": "scroll →", "set_wl_remove": "🗑️ Remove myself from whitelist", "btn_remove": "Remove", "osk_switch": "🌐 Switch", "tasks_refresh": "🔄 Refresh", "type_here_ph": "Type here...", "osk_cancel": "Cancel", "ctx_open": "Open", "ctx_copy": "Copy", "ctx_cut": "Cut", "ctx_paste": "Paste", "ctx_rename": "Rename", "ctx_shortcut": "Create Shortcut", "ctx_properties": "Properties", "ctx_delete": "Delete", "monitor_1": "Screen 1"};
 
 var I18N_AR = {
     'tab_touch':'لمس','tab_keys':'اختصارات','tab_pres':'عرض','gaming':'Gaming','tab_screen':'شاشة','tab_settings':'إعدادات',
@@ -2459,7 +2557,24 @@ var I18N_AR = {
     'sched_title':'⏰ المهام المجدولة','sched_macro_placeholder':'اختار ماكرو...',
     'btn_add2':'+ إضافة','log_title':'لوج',
     'macros_title':'⚡ الماكروهات','macro_rec':'⏺ تسجيل',
-    'keypicker_title':'🎹 اختار مفتاح','exp_root':'🖥️ هذا الجهاز'
+    'keypicker_title':'🎹 اختار مفتاح','exp_root':'🖥️ هذا الجهاز',
+    'set_rclick_delay':'🖱️ مهلة كليك يمين','set_vib_str':'💪 قوة الاهتزاز',
+    'exp_upload':'⬆ رفع','exp_paste':'📌 لصق',
+    'sort_name':'الاسم ↕','sort_date':'التاريخ ↕','sort_size':'الحجم ↕','sort_type':'النوع ↕',
+    'macro_click':'🖱 كليك','macro_right':'🖱 يمين','macro_double':'⚡ دبل',
+    'macro_key':'⌨ مفتاح','macro_type':'✏ نص','macro_delay':'⏱ انتظر',
+    'macro_save':'💾 حفظ','macro_name_ph':'اسم الماكرو...','macro_no_steps':'لا يوجد خطوات بعد...',
+    'tasks_press_refresh':'اضغط تحديث لتحميل العمليات','tasks_no_procs':'لا يوجد عمليات',
+    'log_no_events':'لا يوجد أحداث','tasks_auto_stop':'⏸ إيقاف',
+    'exp_loading':'جاري التحميل...','tasks_col_name':'الاسم',
+    'sched_name_ph':'اسم المهمة','sched_no_tasks':'لا يوجد مهام مجدولة',
+    'gc_edit':'تحرير','gc_save':'💾 حفظ','gc_palette':'Palette ← اسحب','gc_scroll':'scroll →',
+    'set_wl_remove':'🗑️ إزالة نفسي من القايمة البيضا','btn_remove':'إزالة',
+    'osk_switch':'🌐 تبديل','tasks_refresh':'🔄 تحديث',
+    'type_here_ph':'اكتب هنا...','osk_cancel':'إلغاء',
+    'ctx_open':'فتح','ctx_copy':'نسخ','ctx_cut':'قص','ctx_paste':'لصق',
+    'ctx_rename':'إعادة تسمية','ctx_shortcut':'إنشاء اختصار',
+    'ctx_properties':'Properties','ctx_delete':'حذف','monitor_1':'شاشة 1'
 };
 function setLang(lang) {
     currentLang = lang;
@@ -2492,12 +2607,29 @@ function setLang(lang) {
     var aiBtn = document.getElementById('ai-btn');
     if (aiBtn) aiBtn.textContent = '🧠 ' + (aiActive ? (lang==='en'?'AI: On':'AI: تشغيل') : (lang==='en'?'AI: Off':'AI: إيقاف'));
 
+    // CSS pseudo-element touchpad hint
+    document.documentElement.style.setProperty('--tp-hint-text', lang==='en' ? '"touchpad — Move mouse here"' : '"touchpad — حرك الماوس هنا"');
+
+    // Placeholders
+    document.querySelectorAll('[data-i18n-ph]').forEach(function(el) {
+        var key = el.getAttribute('data-i18n-ph');
+        if (L[key] !== undefined) el.placeholder = L[key];
+    });
+
+    // Update data-title tooltips
+    document.querySelectorAll('[data-title-ar]').forEach(function(el) {
+        el.title = lang==='en' ? (el.getAttribute('data-title-en')||'') : (el.getAttribute('data-title-ar')||'');
+    });
+
     // whitelist-display is updated by loadWhitelist; do not override here.
+    // Refresh dynamic dropdowns
+    loadMonitors();
 
 }
 
 // ── Mouse Select Mode ──────────────────────────────────────────────────────────
 function toggleSelectMode() {
+    vibrateAction('click');
     selectMode = !selectMode;
     if (!selectMode) socket.emit('key_up', { key: 'shift' });
     var btn = document.getElementById('select-mode-btn');
@@ -2515,7 +2647,7 @@ function toggleSelectMode() {
     } else if (!selectMode && badge) {
         badge.remove();
     }
-    toast(selectMode ? '🔲 وضع التحديد — حرك مع الضغط' : '🖱 وضع عادي');
+    toast(selectMode ? (currentLang==='en'?'🔲 Select mode — drag to select':'🔲 وضع التحديد — حرك مع الضغط') : (currentLang==='en'?'🖱 Normal mode':'🖱 وضع عادي'));
 }
 
 // ── Remote Audio ───────────────────────────────────────────────────────────────
@@ -2550,8 +2682,8 @@ function toggleRemoteAudio() {
         if (!_audioCtxStream) _audioCtxStream = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 22050 });
         if (_audioCtxStream.state === 'suspended') _audioCtxStream.resume();
         fetch('/audio/start', {method:'POST'}).then(function(r){return r.json();}).then(function(d){
-            if (d.ok) toast('🔊 Remote Audio شغال');
-            else toast('❌ فشل تشغيل الصوت');
+            if (d.ok) toast(currentLang==='en'?'🔊 Remote Audio active':'🔊 Remote Audio شغال');
+            else toast(currentLang==='en'?'❌ Failed to start audio':'❌ فشل تشغيل الصوت');
         }).catch(function(){ toast('❌ خطأ'); });
     } else {
         fetch('/audio/stop', {method:'POST'});
@@ -2559,12 +2691,12 @@ function toggleRemoteAudio() {
             try { _audioCtxStream.close(); } catch (e) { console.warn('audio context close failed', e); }
             _audioCtxStream = null;
         }
-        toast('🔇 Remote Audio متوقف');
+        toast(currentLang==='en'?'🔇 Remote Audio stopped':'🔇 Remote Audio متوقف');
     }
 }
 
 // ── Brute Force Protection ─────────────────────────────────────────────────────
-function reportPinResult(success) {
+function reportPinResult(success, callback) {
     fetch('/auth/pin_check', {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
@@ -2574,8 +2706,22 @@ function reportPinResult(success) {
             document.getElementById('pin-error').textContent = d.error;
             pinBuffer = [];
             for (var i = 0; i < 4; i++) document.getElementById('pd' + i).classList.remove('filled');
+            var match = d.error.match(/(\d+)/);
+            var secs = match ? parseInt(match[1]) : 60;
+            pinLocked = true;
+            document.querySelectorAll('.pin-btn').forEach(function(b) { b.disabled = true; b.style.opacity = '.3'; });
+            setTimeout(function() {
+                pinLocked = false;
+                document.querySelectorAll('.pin-btn').forEach(function(b) { b.disabled = false; b.style.opacity = ''; });
+                document.getElementById('pin-error').textContent = '';
+            }, secs * 1000);
+            if (callback) callback(false);
+        } else {
+            if (callback) callback(true);
         }
-    }).catch(function(){});
+    }).catch(function() {
+        if (callback) callback(false);
+    });
 }
 
 // ── Task Manager ───────────────────────────────────────────────────────────────
@@ -2583,10 +2729,11 @@ var tasksAutoRefresh = false;
 var tasksInterval = null;
 
 function loadTasks() {
+    vibrateAction('click');
     fetch('/tasks/list').then(function(r){ return r.json(); }).then(function(procs) {
         if (procs.error) { document.getElementById('task-list').innerHTML = '<div class="exp-loading" style="color:var(--accent2)">' + procs.error + '</div>'; return; }
         var el = document.getElementById('task-list');
-        if (!procs.length) { el.innerHTML = '<div class="exp-loading">لا يوجد عمليات</div>'; return; }
+        if (!procs.length) { el.innerHTML = '<div class="exp-loading">' + (currentLang==='en'?'No processes':'لا يوجد عمليات') + '</div>'; return; }
         el.innerHTML = procs.map(function(p) {
             var mem = p.mem > 1048576 ? (p.mem/1048576).toFixed(0)+' MB' : (p.mem/1024).toFixed(0)+' KB';
             var cpuClass = p.cpu > 50 ? ' hot' : '';
@@ -2597,17 +2744,18 @@ function loadTasks() {
                 '<button class="task-kill" onclick="killTask(' + p.pid + ',\'' + p.name.replace(/'/g,"\\'") + '\')">⛔</button>' +
                 '</div>';
         }).join('');
-    }).catch(function(){ document.getElementById('task-list').innerHTML = '<div class="exp-loading" style="color:var(--accent2)">خطأ في التحميل</div>'; });
+    }).catch(function(){ document.getElementById('task-list').innerHTML = '<div class="exp-loading" style="color:var(--accent2)">' + (currentLang==='en'?'Load error':'خطأ في التحميل') + '</div>'; });
 }
 function killTask(pid, name) {
-    if (!confirm('إيقاف "' + name + '"؟')) return;
+    if (!confirm((currentLang==='en'?'Stop "':'إيقاف "') + name + '"?')) return;
     fetch('/tasks/kill', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pid:pid}) })
-        .then(function(){ toast('⛔ تم إيقاف: ' + name); loadTasks(); });
+        .then(function(){ toast((currentLang==='en'?'⛔ Stopped: ':'⛔ تم إيقاف: ') + name); loadTasks(); });
 }
 function toggleTasksAuto() {
+    vibrateAction('click');
     tasksAutoRefresh = !tasksAutoRefresh;
     var btn = document.getElementById('tasks-auto-btn');
-    btn.textContent = tasksAutoRefresh ? '⏸ إيقاف' : '▶ تلقائي';
+    btn.textContent = tasksAutoRefresh ? (currentLang==='en'?'⏸ Stop':'⏸ إيقاف') : (currentLang==='en'?'▶ Auto':'▶ تلقائي');
     btn.classList.toggle('accent', tasksAutoRefresh);
     if (tasksAutoRefresh) { loadTasks(); tasksInterval = setInterval(loadTasks, 3000); }
     else clearInterval(tasksInterval);
@@ -2615,17 +2763,18 @@ function toggleTasksAuto() {
 
 // ── Scheduled Tasks ────────────────────────────────────────────────────────────
 function loadScheduled() {
+    vibrateAction('click');
     fetch('/scheduled/list').then(function(r){ return r.json(); }).then(function(tasks) {
         var el = document.getElementById('sched-list');
         // Update macro select
         fetch('/macros/list').then(function(r){ return r.json(); }).then(function(list) {
             var sel = document.getElementById('sched-macro');
             var cur = sel.value;
-            sel.innerHTML = '<option value="">اختار ماكرو...</option>' +
+            sel.innerHTML = '<option value="">' + (currentLang==='en'?'Select macro...':'اختار ماكرو...') + '</option>' +
                 list.map(function(m){ return '<option value="' + m + '">' + m + '</option>'; }).join('');
             sel.value = cur;
         });
-        if (!tasks.length) { el.innerHTML = '<div class="exp-loading">لا يوجد مهام مجدولة</div>'; return; }
+        if (!tasks.length) { el.innerHTML = '<div class="exp-loading">' + (currentLang==='en'?'No scheduled tasks':'لا يوجد مهام مجدولة') + '</div>'; return; }
         el.innerHTML = tasks.map(function(t) {
             return '<div class="sched-item">' +
                 '<div class="sched-time">' + t.time + '</div>' +
@@ -2637,12 +2786,13 @@ function loadScheduled() {
     });
 }
 function addScheduled() {
+    vibrateAction('shortcut');
     var time  = document.getElementById('sched-time').value;
     var name  = document.getElementById('sched-name').value.trim();
     var macro = document.getElementById('sched-macro').value;
-    if (!time || !name || !macro) { toast('❌ أكمل كل الحقول'); return; }
+    if (!time || !name || !macro) { toast(currentLang==='en'?'❌ Fill all fields':'❌ أكمل كل الحقول'); return; }
     fetch('/scheduled/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({time,name,macro}) })
-        .then(function(){ loadScheduled(); toast('✅ تم الإضافة'); });
+        .then(function(){ loadScheduled(); toast(currentLang==='en'?'✅ Task added':'✅ تم الإضافة'); });
 }
 function toggleScheduled(id) {
     fetch('/scheduled/toggle', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) })
@@ -2650,14 +2800,14 @@ function toggleScheduled(id) {
 }
 function deleteScheduled(id) {
     fetch('/scheduled/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id}) })
-        .then(function(){ loadScheduled(); toast('🗑 تم الحذف'); });
+        .then(function(){ loadScheduled(); toast(currentLang==='en'?'🗑 Deleted':'🗑 تم الحذف'); });
 }
 
 // ── Event Log ──────────────────────────────────────────────────────────────────
 function loadLog() {
     fetch('/log/list').then(function(r){ return r.json(); }).then(function(events) {
         var el = document.getElementById('log-list');
-        if (!events.length) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;font-size:11px">لا يوجد أحداث</div>'; return; }
+        if (!events.length) { el.innerHTML = '<div style="color:var(--muted);text-align:center;padding:20px;font-size:11px">' + (currentLang==='en'?'No events':'لا يوجد أحداث') + '</div>'; return; }
         el.innerHTML = events.map(function(e) {
             return '<div class="log-item ' + (e.type||'') + '">' +
                 '<span class="log-time">' + (e.t||'').split(' ')[1] + '</span>' +
@@ -2668,8 +2818,8 @@ function loadLog() {
     });
 }
 function clearLog() {
-    if (!confirm('مسح السجل؟')) return;
-    fetch('/log/clear', {method:'POST'}).then(function(){ loadLog(); toast('🗑 تم مسح السجل'); });
+    if (!confirm(currentLang==='en'?'Clear log?':'مسح السجل؟')) return;
+    fetch('/log/clear', {method:'POST'}).then(function(){ loadLog(); toast(currentLang==='en'?'🗑 Log cleared':'🗑 تم مسح السجل'); });
 }
 
 // ── Frame Skip (CPU guard) ─────────────────────────────────────────────────────
@@ -2677,33 +2827,115 @@ var _lastCpuCheck = 0, _cpuHigh = false;
 socket.on('stats_push', function(d) {
     if (d.cpu_usage > 95 && !_cpuHigh) {
         _cpuHigh = true;
-        toast('⚠ CPU مرتفع — تخطي frames مفعّل');
+        toast(currentLang==='en'?'⚠ CPU high — frame skip enabled':'⚠ CPU مرتفع — تخطي frames مفعّل');
     } else if (d.cpu_usage < 80) {
         _cpuHigh = false;
     }
 });
 var _frameSkipCounter = 0;
-_frameImg.onload = function() {
-    if (!screenActive) return;
-    screenCanvas.width  = _frameImg.naturalWidth;
-    screenCanvas.height = _frameImg.naturalHeight;
-    screenCanvas.style.height = 'auto';
-    screenCtx.drawImage(_frameImg, 0, 0);
-};
+var _pendingBitmap    = null;
+var _rafScheduled     = false;
+var _useImageBitmap   = (typeof createImageBitmap === 'function');
+var screenCtx         = screenCanvas.getContext('2d', {alpha: false, desynchronized: true});
+var _lastFrameW = 0, _lastFrameH = 0;
+
+function _applyDPRCanvas(srcW, srcH) {
+    var dpr = window.devicePixelRatio || 1;
+    var wrap = screenCanvas.parentElement;
+    var cssW = wrap ? wrap.clientWidth : srcW;
+    var cssH = Math.round(cssW * srcH / srcW);
+    var physW = Math.round(cssW * dpr);
+    var physH = Math.round(cssH * dpr);
+    if (screenCanvas.width !== physW || screenCanvas.height !== physH || _lastFrameW !== srcW || _lastFrameH !== srcH) {
+        screenCanvas.width  = physW;
+        screenCanvas.height = physH;
+        screenCanvas.style.width  = '100%';
+        screenCanvas.style.height = 'auto';
+        screenCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        _lastFrameW = srcW; _lastFrameH = srcH;
+    }
+}
+
+function _renderPendingBitmap() {
+    _rafScheduled = false;
+    if (!screenActive || !_pendingBitmap) return;
+    var bmp = _pendingBitmap;
+    _pendingBitmap = null;
+    _applyDPRCanvas(bmp.width, bmp.height);
+    var dpr = window.devicePixelRatio || 1;
+    var cssW = screenCanvas.width / dpr;
+    var cssH = screenCanvas.height / dpr;
+    screenCtx.drawImage(bmp, 0, 0, bmp.width, bmp.height, 0, 0, cssW, cssH);
+    bmp.close();
+}
+
+function _renderObjectURL(url, w, h) {
+    _frameImg.onload = function() {
+        URL.revokeObjectURL(url);
+        if (!screenActive) return;
+        _applyDPRCanvas(w, h);
+        var dpr = window.devicePixelRatio || 1;
+        var cssW = screenCanvas.width / dpr;
+        var cssH = screenCanvas.height / dpr;
+        screenCtx.drawImage(_frameImg, 0, 0, w, h, 0, 0, cssW, cssH);
+    };
+    _frameImg.src = url;
+}
+
 socket.on('frame', function(d) {
     if (!screenActive) return;
     if (_cpuHigh && _frameSkipCounter++ % 3 !== 0) return;
     if (!_cpuHigh) _frameSkipCounter = 0;
 
-    scrBytesAccum += d.size || Math.round(d.data.length * 0.75);
+    scrBytesAccum += d.size || 0;
     var now = Date.now();
     if (now - scrLastTime >= 1000) {
-        var kbps = (scrBytesAccum / 1024).toFixed(1);
-        var label = scrBytesAccum >= 1024*100 ? (scrBytesAccum/1048576).toFixed(2)+' MB/s' : kbps+' KB/s';
+        var acc = scrBytesAccum;
+        var label = acc >= 1024*100 ? (acc/1048576).toFixed(2)+' MB/s' : (acc/1024).toFixed(1)+' KB/s';
         document.getElementById('scr-stat').textContent = label;
         scrBytesAccum = 0; scrLastTime = now;
     }
-    _frameImg.src = 'data:image/jpeg;base64,' + d.data;
+
+    var raw = d.data;
+    var blob;
+    if (raw instanceof ArrayBuffer || ArrayBuffer.isView(raw)) {
+        blob = new Blob([raw], {type: 'image/jpeg'});
+    } else {
+        var bStr = atob(raw);
+        var u8 = new Uint8Array(bStr.length);
+        for (var i = 0; i < bStr.length; i++) u8[i] = bStr.charCodeAt(i);
+        blob = new Blob([u8], {type: 'image/jpeg'});
+    }
+
+    if (_useImageBitmap) {
+        createImageBitmap(blob, {premultiplyAlpha:'none', colorSpaceConversion:'none'}).then(function(bmp) {
+            if (!screenActive) { bmp.close(); return; }
+            if (_pendingBitmap) _pendingBitmap.close();
+            _pendingBitmap = bmp;
+            if (!_rafScheduled) {
+                _rafScheduled = true;
+                requestAnimationFrame(_renderPendingBitmap);
+            }
+        }).catch(function(){});
+    } else {
+        var url = URL.createObjectURL(blob);
+        var img = new Image();
+        img.onload = function() {
+            URL.revokeObjectURL(url);
+            if (!screenActive) return;
+            _renderObjectURL(url, img.naturalWidth, img.naturalHeight);
+        };
+        img.src = url;
+    }
+});
+
+socket.on('fps_update', function(d) {
+    if (!screenActive) return;
+    var el = document.getElementById('scr-fps-real');
+    if (!el) return;
+    var fps = d.fps;
+    el.textContent = fps + ' fps';
+    el.style.color = fps >= 50 ? 'var(--green)' : fps >= 25 ? 'var(--accent)' : 'var(--accent2)';
 });
 
 // ── Microphone ─────────────────────────────────────────────────────────────────
@@ -2714,18 +2946,18 @@ function toggleMicFromSettings() {
     var statusRow = document.getElementById('mic-settings-status');
     if (!micActive) {
         startMic();
-        btn.textContent = 'إيقاف';
+        btn.textContent = currentLang==='en'?'Stop':'إيقاف';
         statusRow.style.display = 'flex';
     } else {
         stopMic();
-        btn.textContent = 'تشغيل';
+        btn.textContent = currentLang==='en'?'Start':'تشغيل';
         statusRow.style.display = 'none';
     }
 }
 
 function startMic() {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        toast('❌ يحتاج HTTPS أو USB (localhost)'); return;
+        toast(currentLang==='en'?'❌ Requires HTTPS or USB (localhost)':'❌ يحتاج HTTPS أو USB (localhost)'); return;
     }
     navigator.mediaDevices.getUserMedia({ audio: { sampleRate:44100, channelCount:1, echoCancellation:false, noiseSuppression:false } })
     .then(function(stream) {
@@ -2756,8 +2988,8 @@ function startMic() {
         socket.emit('mic_start', {});
         micActive = true;
         var st = document.getElementById('mic-status');
-        if (st) st.textContent = '🔴 جاري البث...';
-        toast('🎙️ الميكروفون شغال');
+        if (st) st.textContent = currentLang==='en'?'🔴 Streaming...':'🔴 جاري البث...';
+        toast(currentLang==='en'?'🎙️ Microphone active':'🎙️ الميكروفون شغال');
     })
     .catch(function(e) { toast('❌ ' + e.message); });
 }
@@ -2772,7 +3004,7 @@ function stopMic() {
     if (volFill) volFill.style.width = '0%';
     var st = document.getElementById('mic-status');
     if (st) st.textContent = '';
-    toast('🎙️ تم إيقاف الميكروفون');
+    toast(currentLang==='en'?'🎙️ Microphone stopped':'🎙️ تم إيقاف الميكروفون');
 }
 
 // ── Explorer Sort ──────────────────────────────────────────────────────────────
@@ -2780,11 +3012,15 @@ var expSortBy  = 'name';
 var expSortAsc = true;
 
 function expSetSort(by) {
+    vibrateAction('click');
     if (expSortBy === by) expSortAsc = !expSortAsc;
     else { expSortBy = by; expSortAsc = true; }
     document.querySelectorAll('.exp-sort-btn').forEach(function(b){ b.classList.remove('active'); });
     var btn = document.getElementById('sort-' + by);
-    if (btn) { btn.classList.add('active'); btn.textContent = {name:'الاسم',date:'التاريخ',size:'الحجم',type:'النوع'}[by] + (expSortAsc?' ↑':' ↓'); }
+    var names = currentLang==='en'
+        ? {name:'Name',date:'Date',size:'Size',type:'Type'}
+        : {name:'الاسم',date:'التاريخ',size:'الحجم',type:'النوع'};
+    if (btn) { btn.classList.add('active'); btn.textContent = names[by] + (expSortAsc?' ↑':' ↓'); }
     expRefresh();
 }
 
@@ -2805,21 +3041,23 @@ function _expSortEntries(entries) {
 
 // ── Explorer Create ────────────────────────────────────────────────────────────
 function expMkdir() {
-    if (!expCurrentPath) { toast('❌ افتح مجلد الأول'); return; }
-    var name = prompt('اسم المجلد الجديد:'); if (!name) return;
+    vibrateAction('click');
+    if (!expCurrentPath) { toast(currentLang==='en'?'❌ Open a folder first':'❌ افتح مجلد الأول'); return; }
+    var name = prompt(currentLang==='en'?'New folder name:':'اسم المجلد الجديد:'); if (!name) return;
     fetch('/explorer/mkdir', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:expCurrentPath, name:name}) })
     .then(function(r){ return r.json(); }).then(function(d){
-        if (d.ok) { expRefresh(); toast('✅ تم إنشاء المجلد'); }
+        if (d.ok) { expRefresh(); toast(currentLang==='en'?'✅ Folder created':'✅ تم إنشاء المجلد'); }
         else toast('❌ ' + d.error);
     });
 }
 
 function expMkfile() {
-    if (!expCurrentPath) { toast('❌ افتح مجلد الأول'); return; }
-    var name = prompt('اسم الملف الجديد:'); if (!name) return;
+    vibrateAction('click');
+    if (!expCurrentPath) { toast(currentLang==='en'?'❌ Open a folder first':'❌ افتح مجلد الأول'); return; }
+    var name = prompt(currentLang==='en'?'New file name:':'اسم الملف الجديد:'); if (!name) return;
     fetch('/explorer/mkfile', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({path:expCurrentPath, name:name}) })
     .then(function(r){ return r.json(); }).then(function(d){
-        if (d.ok) { expRefresh(); toast('✅ تم إنشاء الملف'); }
+        if (d.ok) { expRefresh(); toast(currentLang==='en'?'✅ File created':'✅ تم إنشاء الملف'); }
         else toast('❌ ' + d.error);
     });
 }
@@ -2859,50 +3097,51 @@ function ctxCopy() {
     expClipboard = { paths: expSelected.slice(), op:'copy' };
     var pb = document.getElementById('exp-paste-btn');
     if (pb) pb.style.display = 'block';
-    toast('📋 تم النسخ (' + expClipboard.paths.length + ')');
+    toast((currentLang==='en'?'📋 Copied (':'📋 تم النسخ (') + expClipboard.paths.length + ')');
 }
 function ctxCut() {
     expClipboard = { paths: expSelected.slice(), op:'cut' };
     document.querySelectorAll('.exp-item.selected').forEach(function(i){ i.classList.add('cut'); });
     var pb = document.getElementById('exp-paste-btn');
     if (pb) pb.style.display = 'block';
-    toast('✂️ تم القص (' + expClipboard.paths.length + ')');
+    toast((currentLang==='en'?'✂️ Cut (':'✂️ تم القص (') + expClipboard.paths.length + ')');
 }
 function ctxPaste() {
+    vibrateAction('click');
     if (!expClipboard.paths.length || !expCurrentPath) return;
     var ep  = expClipboard.op === 'cut' ? '/explorer/move' : '/explorer/copy';
-    var msg = expClipboard.op === 'cut' ? 'نقل' : 'نسخ';
+    var msg = expClipboard.op === 'cut' ? (currentLang==='en'?'Move':'نقل') : (currentLang==='en'?'Copy':'نسخ');
     fetch(ep, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paths:expClipboard.paths, dest:expCurrentPath}) })
     .then(function(r){ return r.json(); }).then(function(d){
-        if (d.ok) { if (expClipboard.op==='cut') expClipboard={paths:[],op:''}; expRefresh(); toast('✅ تم ' + msg); }
+        if (d.ok) { if (expClipboard.op==='cut') expClipboard={paths:[],op:''}; expRefresh(); toast('✅ ' + msg); }
         else toast('❌ ' + (d.errors||[d.error]).join(', '));
     });
 }
 function ctxRename() {
     if (!_ctxTarget) return;
     var old  = _ctxTarget.entry.name;
-    var name = prompt('الاسم الجديد:', old); if (!name || name === old) return;
+    var name = prompt(currentLang==='en'?'New name:':'الاسم الجديد:', old); if (!name || name === old) return;
     fetch('/explorer/rename', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({src:_ctxTarget.path, name:name}) })
     .then(function(r){ return r.json(); }).then(function(d){
-        if (d.ok) { expRefresh(); toast('✅ تمت إعادة التسمية'); }
+        if (d.ok) { expRefresh(); toast(currentLang==='en'?'✅ Renamed':'✅ تمت إعادة التسمية'); }
         else toast('❌ ' + d.error);
     });
 }
 function ctxDelete() {
     if (!expSelected.length) return;
-    if (!confirm('حذف ' + expSelected.length + ' عنصر؟')) return;
+    if (!confirm((currentLang==='en'?'Delete ':'حذف ') + expSelected.length + (currentLang==='en'?' item(s)?':' عنصر؟'))) return;
     fetch('/explorer/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paths:expSelected}) })
     .then(function(r){ return r.json(); }).then(function(d){
         expSelected = []; _expUpdateSelUI(); expRefresh();
-        if (d.ok) toast('🗑️ تم الحذف');
-        else toast('⚠️ بعض الملفات فشلت');
+        if (d.ok) toast(currentLang==='en'?'🗑️ Deleted':'🗑️ تم الحذف');
+        else toast(currentLang==='en'?'⚠️ Some files failed':'⚠️ بعض الملفات فشلت');
     });
 }
 function ctxShortcut() {
     if (!_ctxTarget || !expCurrentPath) return;
     fetch('/explorer/shortcut', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({src:_ctxTarget.path, dest:expCurrentPath}) })
     .then(function(r){ return r.json(); }).then(function(d){
-        if (d.ok) { expRefresh(); toast('🔗 تم إنشاء الاختصار'); }
+        if (d.ok) { expRefresh(); toast(currentLang==='en'?'🔗 Shortcut created':'🔗 تم إنشاء الاختصار'); }
         else toast('❌ ' + d.error);
     });
 }
@@ -2914,7 +3153,7 @@ function ctxProperties() {
         var sz   = d.size >= 1048576 ? (d.size/1048576).toFixed(2)+' MB' : d.size >= 1024 ? (d.size/1024).toFixed(1)+' KB' : d.size+' B';
         var mod  = new Date(d.modified*1000).toLocaleString();
         var cre  = new Date(d.created*1000).toLocaleString();
-        alert('الاسم: ' + d.name + '\nالنوع: ' + (d.type==='folder'?'مجلد':'ملف') + '\nالحجم: ' + sz + '\nالمسار: ' + d.path + '\nالتعديل: ' + mod + '\nالإنشاء: ' + cre);
+        alert((currentLang==='en'?'Name: ':'الاسم: ') + d.name + '\n' + (currentLang==='en'?'Type: ':'النوع: ') + (d.type==='folder'?(currentLang==='en'?'Folder':'مجلد'):(currentLang==='en'?'File':'ملف')) + '\n' + (currentLang==='en'?'Size: ':'الحجم: ') + sz + '\n' + (currentLang==='en'?'Path: ':'المسار: ') + d.path + '\n' + (currentLang==='en'?'Modified: ':'التعديل: ') + mod + '\n' + (currentLang==='en'?'Created: ':'الإنشاء: ') + cre);
     });
 }
 
@@ -2946,7 +3185,7 @@ expGoto = function(path) {
             if (d.error) { list.innerHTML = '<div class="exp-loading" style="color:var(--accent2)">' + d.error + '</div>'; return; }
             _expRenderBreadcrumb(d.path);
             var sorted = _expSortEntries(d.entries);
-            if (!sorted.length) { list.innerHTML = '<div class="exp-loading">المجلد فاضي</div>'; return; }
+            if (!sorted.length) { list.innerHTML = '<div class="exp-loading">' + (currentLang==='en'?'Empty folder':'المجلد فاضي') + '</div>'; return; }
             list.innerHTML = '';
             sorted.forEach(function(e) {
                 var item    = document.createElement('div');
@@ -2981,7 +3220,7 @@ expGoto = function(path) {
                 list.appendChild(item);
             });
         })
-        .catch(function(){ list.innerHTML = '<div class="exp-loading" style="color:var(--accent2)">خطأ في التحميل</div>'; });
+        .catch(function(){ list.innerHTML = '<div class="exp-loading" style="color:var(--accent2)">' + (currentLang==='en'?'Load error':'خطأ في التحميل') + '</div>'; });
 };
 
 document.addEventListener('fullscreenchange', function() {
@@ -3042,7 +3281,7 @@ setTimeout(function() {
             if (!btn) return;
             e.preventDefault();
             var oc = btn.getAttribute('onclick');
-            if (oc) { try { eval(oc); } catch(ex) {} }
+            if (oc) { try { (new Function(oc))(); } catch(ex) {} }
         }, {passive: false});
     }
     addTouchDelegate('panel-keys');
@@ -3051,6 +3290,7 @@ setTimeout(function() {
 
 var _currentLogTab = 'server';
 function setLogTab(tab) {
+    vibrateAction('click');
     _currentLogTab = tab;
     document.getElementById('ltab-srv').style.color = tab==='server'?'var(--accent)':'';
     document.getElementById('ltab-cli').style.color = tab==='client'?'var(--accent)':'';
@@ -3068,10 +3308,12 @@ function renderClientLog() {
             '<span class="log-time">'+e.t+'</span>'+
             '<span class="log-type" style="color:'+col+'">'+e.level+'</span>'+
             '<span class="log-detail">'+e.msg+'</span></div>';
-    }).join('') || '<div style="color:var(--muted);text-align:center;padding:20px;font-size:11px">لا يوجد لوج</div>';
+    }).join('') || '<div style="color:var(--muted);text-align:center;padding:20px;font-size:11px">' + (currentLang==='en'?'No log':'لا يوجد لوج') + '</div>';
 }
-function refreshLog() { if(_currentLogTab==='server') loadLog(); else renderClientLog(); }
+function refreshLog() {
+    vibrateAction('click'); if(_currentLogTab==='server') loadLog(); else renderClientLog(); }
 function clearCurrentLog() {
+    vibrateAction('click');
     if (_currentLogTab==='server') clearLog();
     else { _pccLogs=[]; renderClientLog(); }
 }
@@ -3205,7 +3447,6 @@ function setOSMode(os) {
 
 renderGcProfiles();
 setControllerType(gcType);
-checkPIN();
 loadWhitelist();
 setOSMode(_osMode);
 loadAllSettings();
@@ -3215,6 +3456,8 @@ loadScheduled();
 applyTheme();
 setLang(currentLang);
 document.getElementById('lang-select').value = currentLang;
+checkPIN();
+window.addEventListener('resize', function() { if (screenActive) { _lastFrameW = 0; } });
 </script>
 </body>
 </html>
