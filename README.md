@@ -44,7 +44,7 @@ Everything runs **locally on your machine**. Nothing is sent to the internet. Ev
 ### 2. Install dependencies
 
 ```bash
-pip install flask flask-socketio pyautogui opencv-python mss psutil pyperclip sounddevice numpy Pillow cryptography
+python -m pip install -r requirements.txt
 ```
 
 ### 3. Run the server 
@@ -53,13 +53,11 @@ pip install flask flask-socketio pyautogui opencv-python mss psutil pyperclip so
 ** run gen cert so the server runs on https rather than http
 
 ```bash
-python gen_cert.py     # generates cert.pem and key.pem
-python portdesk-server.py   # auto-detects the certificates and starts HTTPS
+python gen_cert.py  # generates cert.pem and key.pem    
 ```
 
-```bash
-python portdesk-server.py
-```
+**portdesk-server.py auto-detects the certificates and starts HTTPS
+
 
 You'll see something like:
 ```
