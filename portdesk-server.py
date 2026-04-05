@@ -1602,7 +1602,6 @@ if __name__ == '__main__':
     print(f"  \u270d  Developed by  :  Lucky_abdo")
     print(f"  \U0001f517  GitHub        :  github.com/Lucky-abdo/PortDesk")
     print(f"{'─'*52}")
-    print(f"  \u2139  This is the original, unmodified official build.")
     print(f"     Forks or modified copies are NOT endorsed and may")
     print(f"     lack the security and privacy guarantees of this release.")
     print(f"{'═'*52}")
