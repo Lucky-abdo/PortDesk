@@ -44,7 +44,7 @@ Everything runs **locally on your machine**. Nothing is sent to the internet. Ev
 ### 2. Install dependencies
 
 ```bash
-python -m pip install -r Requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 ### 3. Run the server 
