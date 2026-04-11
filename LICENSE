@@ -1,0 +1,130 @@
+MIT License + Commons Clause + Attribution Requirement
+
+Copyright (c) 2024 Lucky_abdo
+Project: PortDesk — https://github.com/Lucky-abdo/PortDesk
+
+═══════════════════════════════════════════════════════════════════
+
+PART 1 — MIT LICENSE
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+and distribute copies of the Software, subject to the following
+conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+═══════════════════════════════════════════════════════════════════
+
+PART 2 — COMMONS CLAUSE RESTRICTION
+
+The Software is provided under the MIT License above, with the
+following additional restriction ("Commons Clause"):
+
+Without a separate commercial license obtained in writing from the
+copyright holder (Lucky_abdo), you may NOT:
+
+  (a) Sell the Software or any substantially similar version of it
+      as a product or hosted service;
+
+  (b) Offer the Software, or a product in which the Software is a
+      primary component, as a paid service, subscription, or
+      software-as-a-service (SaaS);
+
+  (c) Charge fees for deployment, installation, support, or access
+      to the Software when the Software itself is the core value
+      being delivered.
+
+Personal use, internal business use, open-source projects, and
+non-commercial distribution remain fully permitted under the MIT
+License above.
+
+To inquire about commercial licensing, contact the copyright holder
+via the official repository: https://github.com/Lucky-abdo/PortDesk
+
+═══════════════════════════════════════════════════════════════════
+
+PART 3 — MANDATORY ATTRIBUTION
+
+Any use, distribution, modification, or derivative work based on
+this Software — whether commercial (where permitted) or
+non-commercial — MUST comply with ALL of the following:
+
+3.1  ORIGIN STATEMENT
+     All public-facing materials (websites, app stores, README
+     files, documentation, social media posts, videos, or any
+     promotional content) must include a clear and prominent
+     statement such as:
+
+         "Based on PortDesk by Lucky_abdo
+          https://github.com/Lucky-abdo/PortDesk"
+
+     This statement must be visible without requiring the user to
+     search for it, and must not be hidden in footnotes, collapsed
+     sections, or obscured in any way.
+
+3.2  NO MISREPRESENTATION OF ORIGIN
+     You may NOT claim, imply, or allow others to believe that:
+
+       (a) You are the original author, creator, or inventor of
+           the core architecture, features, or concepts of this
+           Software;
+
+       (b) The original PortDesk project is discontinued,
+           insecure, unmaintained, inferior, or difficult to use,
+           without providing verifiable technical evidence — any
+           such claim made for the purpose of diverting users away
+           from the original project constitutes a breach of this
+           license;
+
+       (c) Your derivative or fork is the "official" or "original"
+           version of PortDesk.
+
+3.3  NO REPUTATION DAMAGE
+     You may NOT make public statements — including reviews,
+     comparisons, social media posts, or marketing materials —
+     that are designed to undermine the reputation of the original
+     PortDesk project or its author through unsubstantiated claims,
+     deliberate omission, or misleading framing.
+
+     Honest technical criticism based on verifiable facts is
+     permitted and welcomed.
+
+3.4  FORK AND DERIVATIVE NAMING
+     Any fork or derivative must use a clearly distinct name that
+     does not include "PortDesk" as the primary identifier, to
+     avoid confusion with the original project.
+
+     Example of permitted name:  "MyTool (based on PortDesk)"
+     Example of forbidden name:  "PortDesk Pro" / "PortDesk Plus"
+
+═══════════════════════════════════════════════════════════════════
+
+PART 4 — ENFORCEMENT
+
+Violation of any condition in Part 2 or Part 3 immediately
+terminates all rights granted to you under this license.
+
+The copyright holder reserves the right to pursue available legal
+remedies for material violations, including but not limited to
+injunctive relief and damages for reputational harm.
+
+═══════════════════════════════════════════════════════════════════
+
+This license was designed to keep PortDesk free and open for
+everyone, while protecting the work, identity, and reputation of
+its original author.
+
+If you build something with PortDesk — give credit. That's all.
