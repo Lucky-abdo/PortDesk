@@ -6,7 +6,6 @@
 covering security mechanisms (PIN protection, whitelist/blacklist), known issues and their workarounds, platform-specific behavior and requirements (Windows, macOS, Linux), and screen streaming performance characteristics.
 
 ---
-**arabic translation down .
 
 ## Quick Fix (Priority 1)
 - If the keyboard in PortDesk does not respond in general, try running the server from the dedicated launch file (start_portdesk.bat) or running it minimized/hidden.
@@ -73,6 +72,8 @@ The following issues are known and may be encountered in the current release. Pl
 - **Keyboard input on some Windows setups**: May require running the server as Administrator.
 - **Gyroscope control**: Requires HTTPS to be enabled (run `gen_cert.py` first).
 - **Mobile microphone**: Only works over HTTPS.
+- **dxcam on multi-monitor**: The camera instance is created once for a fixed monitor index. Switching monitors while streaming requires a server restart to reinitialize dxcam.
+- **WebRTC fallback**: If WebRTC negotiation fails (e.g., browser incompatibility), the server automatically falls back to WebSocket-based streaming. WebRTC requires the browser to support `RTCPeerConnection` and `getStats()`.
 
 > For the latest fixes and updates, always check: **https://github.com/Lucky-abdo/PortDesk**
 
@@ -243,6 +244,10 @@ WebSocket على Python 3.14: مش شغال صح. استخدم Python 3.11 أو 
 التحكم بالجيروسكوب: يحتاج HTTPS مفعّل.
 
 ميكروفون الموبايل: يشتغل بس على HTTPS.
+
+dxcam مع شاشات متعددة: الـ camera instance بيتعمل مرة واحدة عند أول تشغيل للبث. لو غيرت الشاشة المختارة وفيه مشاكل، أعد تشغيل السيرفر.
+
+WebRTC fallback: لو WebRTC فشل (مثلاً المتصفح مش بيدعمه)، السيرفر بيرجع تلقائياً للـ WebSocket streaming. WebRTC بيحتاج المتصفح يدعم RTCPeerConnection وgetStats().
 
 لمتابعة آخر التحديثات والإصلاحات: https://github.com/Lucky-abdo/PortDesk
 
