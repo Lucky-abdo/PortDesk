@@ -1,6 +1,9 @@
-flask>=2.0.0
-flask-socketio>=5.0.0
-simple-websocket>=1.0.0
+# PortDesk — Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# ── Core (required) ───────────────────────────────────────────────────────────
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
 pyautogui>=0.9.53
 opencv-python>=4.5.0
 mss>=6.0.0
@@ -9,4 +12,27 @@ pyperclip>=1.8.0
 sounddevice>=0.4.0
 numpy>=1.20.0
 Pillow>=8.0.0
-cryptography>=3.0
+python-multipart>=0.0.6
+
+# ── Optional (performance) ────────────────────────────────────────────────────
+# dxcam            — DirectX-based screen capture for Windows (fastest, recommended)
+#                    pip install dxcam
+# PyTurboJPEG      — Hardware-accelerated JPEG encoding (lower CPU usage)
+#                    pip install PyTurboJPEG
+# aiortc           — WebRTC support for screen streaming
+#                    pip install aiortc
+
+# ── Optional (features) ───────────────────────────────────────────────────────
+# python-uinput    — Virtual keyboard on Linux (requires root)
+#                    pip install python-uinput
+# cryptography     — Required for HTTPS/SSL certificate generation
+#                    pip install cryptography
+
+# ── Platform Notes ────────────────────────────────────────────────────────────
+# Python:   3.8 or higher (3.11/3.12 recommended)
+# Windows:  7 and above (10/11 recommended)
+# Linux:    Ubuntu 20.04+, Debian 11+, or any modern distro
+# macOS:    10.14 (Mojave) or later
+
+# ── Linux extra tools (via apt) ───────────────────────────────────────────────
+# sudo apt install xdotool xclip xsel
