@@ -959,13 +959,14 @@ async def _dispatch(data: dict, ws: WebSocket):
     elif t == 'shortcut':
         keys   = [map_key(k) for k in data.get('keys',[])]
         system = platform.system()
+        loop   = asyncio.get_event_loop()
         if system == 'Linux':
             keys = ['super' if k in ('winleft','winright','command','cmd') else k for k in keys]
         has_win = any(k in ('winleft','winright') for k in keys)
         has_cmd = any(k in ('command','cmd','super') for k in keys)
         try:
             if system == 'Windows' and has_win:
-                ok = _press_win_shortcut(keys)
+                ok = await loop.run_in_executor(None, _press_win_shortcut, keys)
                 if not ok:
                     with _pyautogui_lock: pyautogui.hotkey(*keys)
             elif system == 'Darwin' and (has_win or has_cmd):
@@ -978,12 +979,15 @@ async def _dispatch(data: dict, ws: WebSocket):
     elif t == 'key':
         key    = map_key(data.get('key', ''))
         system = platform.system()
+        loop   = asyncio.get_event_loop()
         if system == 'Linux':
             if _virtual_kb_device:
                 key_code = getattr(uinput, f'KEY_{key.upper()}', None)
                 if key_code:
-                    _send_virtual_key(key_code, True); time.sleep(0.01); _send_virtual_key(key_code, False)
-            elif SUBPROCESS_AVAILABLE: _send_xdotool_key(key)
+                    def _vkey_press(_kc=key_code):
+                        _send_virtual_key(_kc, True); time.sleep(0.01); _send_virtual_key(_kc, False)
+                    await loop.run_in_executor(None, _vkey_press)
+            elif SUBPROCESS_AVAILABLE: await loop.run_in_executor(None, _send_xdotool_key, key)
             else:
                 try:
                     with _pyautogui_lock: pyautogui.press(key)
@@ -996,11 +1000,12 @@ async def _dispatch(data: dict, ws: WebSocket):
     elif t == 'type':
         text   = data.get('text', '')
         system = platform.system()
+        loop   = asyncio.get_event_loop()
         if system == 'Linux':
-            if _virtual_kb_device: _send_virtual_text(text)
-            elif SUBPROCESS_AVAILABLE: _send_xdotool_text(text)
-            else: type_text(text)
-        else: type_text(text)
+            if _virtual_kb_device: await loop.run_in_executor(None, _send_virtual_text, text)
+            elif SUBPROCESS_AVAILABLE: await loop.run_in_executor(None, _send_xdotool_text, text)
+            else: await loop.run_in_executor(None, type_text, text)
+        else: await loop.run_in_executor(None, type_text, text)
 
     elif t == 'key_down':
         try:
