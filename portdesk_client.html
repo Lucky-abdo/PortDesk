@@ -1079,6 +1079,14 @@ var _wsReconnectTimer = null;
 
 function _handleBinaryFrame(buf) {
     if (!screenActive || _webrtcMode) return;
+    var view = new DataView(buf);
+    var type = view.getUint8(0);
+
+    if (type === 0x03) {
+        if (_h264Mode) _handleH264Chunk(buf);
+        return;
+    }
+
     var vid = document.getElementById('screen-video');
     if (vid.style.display !== 'none') vid.style.display = 'none';
     if (screenCanvas.style.display === 'none') {
@@ -1086,8 +1094,6 @@ function _handleBinaryFrame(buf) {
         document.getElementById('screen-hint').style.display = 'none';
     }
 
-    var view = new DataView(buf);
-    var type = view.getUint8(0);
     var fw   = view.getUint16(1, false);
     var fh   = view.getUint16(3, false);
 
@@ -2376,6 +2382,8 @@ function stopScreen() {
 
     if (_pendingBitmap) { try { _pendingBitmap.close(); } catch(e){} _pendingBitmap = null; }
     _rafScheduled = false;
+    if (_mse) { try { _mse.endOfStream(); } catch(e) {} _mse = null; }
+    _mseSourceBuffer = null; _mseQueue = []; _msePending = false; _h264Mode = false;
     fetch('/screen/stop', {method:'POST'}).catch(function(){});
     _frameImg.src = '';
     screenCanvas.style.display = 'none';
@@ -3216,6 +3224,51 @@ function _renderObjectURL(url, w, h) {
     _frameImg.src = url;
 }
 
+// ── H264 / MSE ───────────────────────────────────────────────────────────────
+var _h264Mode        = false;
+var _mse             = null;
+var _mseSourceBuffer = null;
+var _mseQueue        = [];
+var _msePending      = false;
+
+function _initMSE(videoEl) {
+    if (!window.MediaSource) return false;
+    _mse = new MediaSource();
+    videoEl.src = URL.createObjectURL(_mse);
+    _mse.addEventListener('sourceopen', function() {
+        try {
+            _mseSourceBuffer = _mse.addSourceBuffer('video/mp4; codecs="avc1.42E01E"');
+            _mseSourceBuffer.mode = 'sequence';
+            _mseSourceBuffer.addEventListener('updateend', _mseFlush);
+        } catch(e) { _h264Mode = false; }
+    });
+    return true;
+}
+
+function _mseFlush() {
+    _msePending = false;
+    if (_mseQueue.length > 0 && _mseSourceBuffer && !_mseSourceBuffer.updating) {
+        _msePending = true;
+        try { _mseSourceBuffer.appendBuffer(_mseQueue.shift()); } catch(e) { _msePending = false; }
+    }
+}
+
+function _handleH264Chunk(buf) {
+    if (!_mseSourceBuffer) return;
+    scrBytesAccum += buf.byteLength;
+    if (!_mseSourceBuffer.updating && _mseSourceBuffer.buffered.length > 0) {
+        var end = _mseSourceBuffer.buffered.end(0);
+        if (end > 10) { try { _mseSourceBuffer.remove(0, end - 5); } catch(e) {} }
+    }
+    var chunk = buf.slice(5);
+    if (!_msePending && !_mseSourceBuffer.updating) {
+        _msePending = true;
+        try { _mseSourceBuffer.appendBuffer(chunk); } catch(e) { _msePending = false; }
+    } else {
+        if (_mseQueue.length < 10) _mseQueue.push(chunk);
+    }
+}
+
 // ── Bandwidth counter (updated from binary frame handler) ──────────────────
 var _bwEma = 0;
 setInterval(function() {
@@ -3237,6 +3290,28 @@ socket.on('fps_update', function(d) {
     var fps = d.fps;
     el.textContent = fps + ' fps';
     el.style.color = fps >= 50 ? 'var(--green)' : fps >= 25 ? 'var(--accent)' : 'var(--accent2)';
+});
+
+socket.on('stream_mode', function(d) {
+    _h264Mode = (d.mode === 'h264');
+    if (_h264Mode) {
+        var vid = document.getElementById('screen-video');
+        screenCanvas.style.display = 'none';
+        document.getElementById('screen-hint').style.display = 'none';
+        _mseQueue = []; _msePending = false; _mseSourceBuffer = null;
+        if (_mse) { try { URL.revokeObjectURL(vid.src); } catch(e) {} _mse = null; }
+        if (_initMSE(vid)) {
+            vid.style.display = 'block';
+            vid.play().catch(function(){});
+        } else {
+            _h264Mode = false;
+            toast(currentLang === 'en' ? '⚠️ MSE not supported' : '⚠️ MSE غير مدعوم');
+        }
+    } else {
+        _h264Mode = false;
+        _mseSourceBuffer = null;
+        _mseQueue = [];
+    }
 });
 
 socket.on('screen_error', function(d) {
