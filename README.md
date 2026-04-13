@@ -29,6 +29,14 @@ Everything runs **locally on your machine**. Nothing is sent to the internet. Ev
 
 ---
 
+### Lazy to read ?
+give this prompt to ai
+```bash
+Read the following PortDesk documentation and give the user a clear, concise summary covering only: what PortDesk is, how to install it, how to run it, and the most important notes (HTTPS for mic/gyro, FFmpeg for H264 streaming, dxcam for best Windows performance, PIN security, whitelist system). Skip detailed platform troubleshooting and feature descriptions. Be brief.
+
+--- PASTE DOCUMENTATION BELOW ---
+```
+
 ## Quick Start
 
 ### 1. Install dependencies
@@ -45,14 +53,24 @@ pip install aiortc         # WebRTC support
 pip install cryptography   # for HTTPS/SSL
 ```
 
+**Optional (for H264 hardware streaming):**
+```bash
+# Windows
+winget install ffmpeg
+# Linux
+sudo apt install ffmpeg
+# macOS
+brew install ffmpeg
+```
+> Without FFmpeg, streaming falls back to JPEG mode automatically.
+
 ### 2. Run the server
 
-# (recomended) run it by start file
-
-or
 ```bash
 python portdesk-server.py
 ```
+
+## **Recomended run it by start file
 
 You'll see something like:
 ```
@@ -66,18 +84,14 @@ You'll see something like:
 
 ### 3. Open on any device
 
-- **WiFi mode:** Open `http://192.168.1.x:5000` in any browser on any device on the same network
-** Open the IP shown in the terminal on any browser and it Works from phones, tablets, laptops, other PCs — anything with a browser
-## notice !!
-you have to Connect your device and PC to the same WiFi network . not guest network either data.
+- **WiFi:** Open `http://192.168.1.x:5000` in any browser on any device on the same network
+- **USB (Android):** Run `adb reverse tcp:5000 tcp:5000` first, then open `http://localhost:5000`
 
-- **USB (Android) mode:** Enable USB Debugging on your Android device first, then Run `adb reverse tcp:5000 tcp:5000` then open `http://localhost:5000` in your browser
+---
 
-## notice !!
-**Requires [ADB (Android Debug Bridge)](https://developer.android.com/tools/adb) installed on PC.**
-  > For non-Android devices (iPhone, iPad, laptop) just use WiFi mode — USB mode is Android-specific.  
+## Connection Modes
 
-- **Hotspot Mode** (no router needed)
+### Hotspot Mode (no router needed)
 You can use PortDesk without any WiFi router by creating a hotspot directly from your PC.
 
 **Windows:**
@@ -86,10 +100,31 @@ You can use PortDesk without any WiFi router by creating a hotspot directly from
 3. Run `portdesk-server.py` — the IP shown in the terminal will be your hotspot IP
 4. Open that IP in your phone's browser
 
-**Android tethering mode (reverse):**
-1. Enable USB tethering on your phone
-2. Run `adb reverse tcp:5000 tcp:5000`
-3. Open `http://localhost:5000` on your phone
+**Android tethering (reverse):**
+1. Connect your phone via USB
+2. Enable USB tethering on your phone
+3. Run `adb reverse tcp:5000 tcp:5000`
+4. Open `http://localhost:5000` on your phone
+
+> Hotspot mode works with zero internet — the connection stays local between your PC and your device.
+
+### WiFi Mode
+- Connect your device and PC to the same WiFi network
+- Open the IP shown in the terminal on any browser
+- Works from phones, tablets, laptops, other PCs — anything with a browser
+**make sure that you are on the main network not guest or data network
+
+### USB Mode — Android
+Requires [ADB (Android Debug Bridge)](https://developer.android.com/tools/adb) installed on PC.
+
+```bash
+# Enable USB Debugging on your Android device first, then:
+adb reverse tcp:5000 tcp:5000
+```
+
+Then open `http://localhost:5000` on your device.
+
+> For non-Android devices (iPhone, iPad, laptop) just use WiFi mode — USB mode is Android-specific.  
 
 ---
 
@@ -166,7 +201,11 @@ Mirror your PC screen to your device.
 - Cursor color customization
 - Touchpad and keyboard available while viewing
 
-> On Windows, install `dxcam` for best performance (`pip install dxcam`). Falls back to `opencv-python` or `Pillow` automatically.
+**Streaming modes:**
+- **H264** (default when FFmpeg is installed): hardware-encoded, low bandwidth, smooth at high FPS
+- **JPEG** (fallback): works without FFmpeg, higher bandwidth
+
+> On Windows, install `dxcam` for best capture performance (`pip install dxcam`). Install FFmpeg for H264 hardware encoding (`winget install ffmpeg`).
 
 ### 📁 Explorer Tab
 Browse, manage, and transfer files between your device and PC.
@@ -284,6 +323,7 @@ Uses your device's microphone as a virtual mic on the PC.
 ## Known Limitations
 
 - Screen mirroring FPS depends on your network speed and PC performance
+- H264 streaming requires FFmpeg installed in PATH — falls back to JPEG automatically without it
 - Mobile microphone requires HTTPS (generate a certificate first)
 - Remote audio on macOS has limited support
 - Gyroscope on iOS requires user permission (browser will ask on first use)
@@ -309,7 +349,7 @@ Uses your device's microphone as a virtual mic on the PC.
 
 ## License
 
-MIT + Commons Clause License — see [LICENSE](LICENSE)
+MIT License — see [LICENSE](LICENSE)
 
 ---
 
