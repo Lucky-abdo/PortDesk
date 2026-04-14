@@ -9,7 +9,7 @@ import queue as _queue
 import string as _string
 import base64, subprocess
 
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
 
 import pyautogui
 import socket as _socket
@@ -403,6 +403,13 @@ def _detect_ffmpeg_encoder():
     if not CV2_AVAILABLE:
         return None
 
+    try:
+        res = subprocess.run(['ffmpeg', '-encoders', '-hide_banner'],
+                             capture_output=True, text=True, timeout=5)
+        enc_list = res.stdout + res.stderr
+    except Exception:
+        enc_list = ''
+
     sys_name = platform.system()
     if sys_name == 'Windows':
         candidates = [
@@ -428,6 +435,9 @@ def _detect_ffmpeg_encoder():
     dummy_frame = np.zeros((64, 64, 3), dtype=np.uint8).tobytes()
 
     for enc, enc_flags in candidates:
+        if enc != 'libx264' and enc not in enc_list:
+            print(f"  ↳ {enc}: not listed in ffmpeg encoders, skip")
+            continue
         try:
             if enc == 'h264_vaapi':
                 cmd = [
@@ -449,7 +459,7 @@ def _detect_ffmpeg_encoder():
 
             proc = subprocess.Popen(cmd, stdin=subprocess.PIPE,
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            _, _ = proc.communicate(input=dummy_frame, timeout=8)
+            _, _ = proc.communicate(input=dummy_frame, timeout=5)
             if proc.returncode == 0:
                 _ffmpeg_encoder    = enc
                 _ffmpeg_encoder_ok = True
@@ -457,9 +467,13 @@ def _detect_ffmpeg_encoder():
                 print(f"✅ FFmpeg encoder: {enc} ({'hardware' if hw else 'software fallback'})")
                 return enc
             else:
-                print(f"  ↳ {enc}: not available")
+                print(f"  ↳ {enc}: returned error")
         except FileNotFoundError:
             print("⚠ FFmpeg not found"); return None
+        except subprocess.TimeoutExpired:
+            try: proc.kill()
+            except: pass
+            print(f"  ↳ {enc}: timeout")
         except Exception as e:
             print(f"  ↳ {enc}: {e}"); continue
 
@@ -1498,8 +1512,7 @@ async def explorer_list(path: str = ''):
 async def explorer_download(path: str = ''):
     if not path or not os.path.exists(path):
         return JSONResponse({'error': 'not found'}, status_code=404)
-    home = os.path.abspath(os.path.expanduser('~'))
-    if not os.path.abspath(path).startswith(home):
+    if '\x00' in path:
         return JSONResponse({'error': 'access denied'}, status_code=403)
     if os.path.isfile(path):
         return FileResponse(path, filename=os.path.basename(path))
@@ -1521,8 +1534,8 @@ async def explorer_download_multi(request: Request):
     d = await request.json()
     paths = d.get('paths', [])
     if not paths: return JSONResponse({'error': 'no paths'}, status_code=400)
-    home = os.path.abspath(os.path.expanduser('~'))
-    paths = [p for p in paths if os.path.exists(p) and os.path.abspath(p).startswith(home)]
+
+    paths = [p for p in paths if os.path.exists(p) and '\x00' not in p]
     if not paths: return JSONResponse({'error': 'access denied'}, status_code=403)
     if len(paths) == 1 and os.path.isfile(paths[0]):
         return FileResponse(paths[0], filename=os.path.basename(paths[0]))
