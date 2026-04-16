@@ -2,7 +2,7 @@
 # Install with: pip install -r requirements.txt
 
 # ── Core (required) ───────────────────────────────────────────────────────────
-fastapi>=0.100.0
+fastapi>=0.109.1
 uvicorn[standard]>=0.23.0
 pyautogui>=0.9.53
 opencv-python>=4.5.0
@@ -10,9 +10,9 @@ mss>=6.0.0
 psutil>=5.8.0
 pyperclip>=1.8.0
 sounddevice>=0.4.0
-numpy>=1.20.0
-Pillow>=8.0.0
-python-multipart>=0.0.6
+numpy>=1.22.0
+Pillow>=10.0.0
+python-multipart>=0.0.18
 
 # ── Optional (performance) ────────────────────────────────────────────────────
 # dxcam            — DirectX-based screen capture for Windows (fastest, recommended)
@@ -41,3 +41,6 @@ python-multipart>=0.0.6
 
 # ── Linux extra tools (via apt) ───────────────────────────────────────────────
 # sudo apt install xdotool xclip xsel
+starlette>=0.40.0 # not directly required, pinned by Snyk to avoid a vulnerability
+anyio>=4.4.0 # not directly required, pinned by Snyk to avoid a vulnerability
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
