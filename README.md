@@ -128,6 +128,39 @@ Then open `http://localhost:5000` on your device.
 
 ---
 
+## 🌐 Remote Access (Internet)
+
+PortDesk operates in **two layers** automatically:
+
+| Layer | Mechanism | When |
+|---|---|---|
+| 1 | Direct WebSocket (LAN/USB) | Same network — always tried first |
+| 2 | WebRTC + STUN (P2P) | Different networks — auto-fallback |
+
+Layer 2 uses free Google STUN servers and requires no installation. It will work if neither device is behind double-NAT (CGNAT). If it fails, see the options below.
+
+---
+
+### Going beyond STUN — using a VPN tunnel
+
+If STUN fails (common with mobile data or ISP CGNAT), the recommended approach is a VPN overlay tool. These create a virtual LAN between your devices, making PortDesk work exactly as if both were on the same WiFi — no code changes needed on either side.
+
+**Recommended: NetBird** (open-source, self-hostable, stronger security model)
+- Download: https://netbird.io
+- Install on both PC and phone, sign in with the same account
+- Use the NetBird IP shown in the dashboard instead of your LAN IP
+
+**Alternative: Tailscale** (easier setup, same concept)
+- Download: https://tailscale.com
+- Install on both devices, sign in
+- Use the Tailscale IP (100.x.x.x) instead of your LAN IP
+
+> **Note on MTU:** Both tools use a slightly reduced MTU (~1280–1400 bytes) to accommodate encryption headers. PortDesk's upload and streaming code handles this transparently via chunked I/O — no manual configuration needed.
+
+> **Security note:** PortDesk's whitelist system uses the tunnel IP. Add it once via Settings → Add this device to whitelist.
+
+---
+
 ## HTTPS Setup (required for microphone)
 
 The mobile microphone feature requires a secure connection (HTTPS).
