@@ -1,9 +1,16 @@
-# PortDesk --- Notes & Documentation
+# PortDesk --- Notes
 
 ## Overview
 This document covers essential security mechanisms (PIN protection, whitelist/blacklist), known issues and their workarounds, platform-specific behavior (Windows, macOS, Linux), and screen streaming performance characteristics.
 
 ---
+
+## keyboard Problem 
+- Mobile keyboard input is sent to the server successfully.
+- Server cursor responds (indicating input reception).
+- But characters don't appear on screen intermittently.
+- Issue occurs due to focus, window state, input method, or environment differences.
+- **Keyboard input on some Windows setups**: May require running the server as Administrator.
 
 ## Quick Fix (Priority 1)
 * Keyboard not responding? Try running the server from the dedicated launch file (start_portdesk.bat) or running it minimized/hidden.
@@ -27,14 +34,24 @@ Open portdesk_security.json and delete the "pins" entry for your IP address and 
 * 3rd+ Lockout: 300 seconds (fixed).
 * Successful login resets the counter for that IP.
 
+> **Note:** During a lockout period, all PIN input buttons are disabled on the client side. The client cannot bypass the lockout even if the correct PIN is entered.
+
+
 ### 3. Whitelist & Auto-Blacklist
 * Whitelist: New devices prompt: "Add to whitelist? (y/n)".
 * Auto-Blacklist: If a device is rejected 3 times, it is permanently blocked.
 * Reset: Owner can remove IPs via terminal or local security JSON.
 
+## TOFU Certificate Warning ??
+
+**TOFU** (Trust On First Use) is how PortDesk verifies your SSL certificate on the client side. The first time you connect over HTTPS, the certificate fingerprint is saved in your browser. On every subsequent connection, the client checks that the fingerprint matches.
+
 ### 4. TOFU Certificate Warning (False Alarm)
 If you regenerate cert.pem / key.pem, the client will show a Man-in-the-Middle (MITM) warning. This is a False Alarm due to the fingerprint change.
-* Fix: Go to Settings tab-> reset trusted cert.
+* Fix: Go to Settings tab in portdesk-> reset trusted cert.
+
+> This warning would also appear if someone genuinely replaced your certificate with a malicious one. If you did not regenerate your certificate but see this warning, treat it as a real security alert and investigate before proceeding.
+
 
 ---
 
@@ -64,11 +81,24 @@ Example: python portdesk-server.py --help
 
 ---
 
-## Performance & Streaming (Latency)
+## Performance & Streaming 
+
+### Streaming Modes
+PortDesk supports two streaming modes selected automatically at startup:
+
+- **H264 mode** (default when FFmpeg is installed): Hardware-encoded H264 stream delivered via WebSocket and decoded in the browser using MSE (Media Source Extensions). Significantly lower bandwidth and better quality at high FPS. Requires FFmpeg in PATH. Hardware encoder is auto-detected (h264_amf → h264_nvenc → h264_qsv → libx264 fallback).
+- **JPEG mode** (fallback): Individual JPEG frames sent over WebSocket with delta-patch optimization. Works without FFmpeg. Higher bandwidth, slightly higher CPU usage.
+
+The active mode is shown in the server console at streaming start.
 
 * H264 Mode: Requires FFmpeg. Lowest bandwidth, best quality.
 * JPEG Mode: Fallback. Higher bandwidth, no FFmpeg needed.
-* Latency Factors: Server CPU (encoding), WiFi strength (transfer), and Browser engine (decoding).
+* Latency Factors: Server CPU (encoding), WiFi strength (transfer), and Browser engine (decoding) ...This is partially addressed in the current version but may still vary.
+> **In short**: Streaming ping is a chain — server CPU → network → client rendering. A bottleneck in any part of this chain increases total latency.
+
+*Quality may vary between devices depending on screen DPR (Device Pixel Ratio) .
+
+**Hardware encoding (h264_amf, h264_nvenc, h264_qsv) is auto-detected at startup — a log message confirms which encoder is active
 
 ---
 
@@ -76,47 +106,166 @@ Example: python portdesk-server.py --help
 * Python 3.14: Asyncio issues on Windows. Use 3.11 or 3.12.
 * H264: Requires FFmpeg in PATH.
 * Gyroscope/Mic: Requires HTTPS (run gen_cert.py).
-* Multi-monitor: dxcam locks to one monitor at startup.
+*Mobile microphone: Only works over HTTPS
+* Multi-monitor: dxcam locks to one monitor at startup.Switching monitors while streaming requires a server restart to reinitialize dxcam.
+
+### Potential Problems:
+
+## Windows-Specific Issues and Solutions
+- **Antivirus Interference**: Some antivirus software may detect pyautogui as suspicious and block its operations.
+- **Virtual Machine Restrictions**: In virtualized environments, input simulation might be restricted or unreliable.
+- **IME (Input Method Editor)**: Issues with non-English input methods or special characters.
+---
+
+## macOS-Specific Issues and Solutions
+
+### Potential Problems:
+- **Accessibility Permissions**: macOS requires explicit accessibility permissions for applications to simulate input.
+- **Gatekeeper Restrictions**: Unsigned or unnotarized applications might be blocked from simulating input.
+- **SIP (System Integrity Protection)**: May restrict certain system-level input simulations.
+
+## Linux-Specific Issues and Solutions
+
+### Potential Problems:
+- **Root Access for uinput**: Virtual keyboard requires root privileges.
+- **Wayland Compatibility**: xdotool doesn't work on Wayland.
+
+
 
 ---
 ---
 
 # PortDesk --- ملاحظات وتوثيق
 
+## نظرة عامة
+يغطي هذا المستند آليات الأمان الأساسية (حماية PIN، القائمة البيضاء/السوداء)، المشاكل المعروفة وحلولها، السلوك الخاص بكل نظام تشغيل (Windows، macOS، Linux)، وخصائص أداء بث الشاشة.
+
+---
+
+## مشكلة الكيبورد
+- إدخال الكيبورد من الموبايل يُرسل للسيرفر بنجاح.
+- مؤشر السيرفر يستجيب (مما يدل على استقبال الإدخال).
+- لكن الأحرف لا تظهر على الشاشة بشكل متقطع.
+- المشكلة تحدث بسبب الـ focus، حالة النافذة، طريقة الإدخال، أو اختلافات البيئة.
+- **إدخال الكيبورد على بعض إعدادات Windows**: قد يتطلب تشغيل السيرفر كـ Administrator.
+
 ## إصلاح سريع (الأولوية الأولى)
-* الكيبورد لا يستجيب؟ جرب تشغيل السيرفر من ملف start_portdesk.bat أو تشغيله بشكل minimized. في ويندوز، هذا يحل أغلب مشاكل الـ focus.
-* في لينكس وماك: استخدم سكربتات .sh لتشغيل السيرفر في الخلفية.
+* الكيبورد لا يستجيب؟ جرب تشغيل السيرفر من ملف start_portdesk.bat المخصص أو تشغيله بشكل minimized/hidden.
+* في Windows: افتح start_portdesk.bat (مكون للتشغيل بـ start /min python "portdesk-server.py"). هذا يحل مشاكل focus/الإدخال في معظم الحالات.
+* في Linux/Mac: استخدم start_portdesk_linux.sh أو start_portdesk_mac.sh لتشغيل السيرفر في الخلفية.
+
+لأي مشكلة غير مغطاة هنا، اكتبها في المناقشات
 
 ---
 
-## نظام الأمان والحماية
+## الأمان والتحكم في الوصول
 
-### 1. حماية الـ PIN من التخمين
-* عندك 5 محاولات قبل القفل.
-* مدد القفل: دقيقة واحدة ثم 3 دقائق ثم 5 دقائق (ثابتة بعد ذلك).
-* أثناء القفل، تتعطل الأزرار تماما لمنع أي تحايل.
+### 1. نسيان PIN / النمط
+إذا تم قفلك:
+افتح portdesk_security.json واحذف إدخال "pins" الخاص بعنوان IP الخاص بك واحفظ الملف. ثم يعيد السيرفر التحميل تلقائياً خلال 2 ثانية.
 
-### 2. القائمة البيضاء والسوداء
-* الموافقة: عند اتصال جهاز جديد، يجب أن تضغط y في التيرمينال للموافقة.
-* الحظر التلقائي: الرفض 3 مرات يضع الجهاز في القائمة السوداء نهائيا.
-* إدارة المستخدم: الكلايانت يمكنه إزالة نفسه فقط من الإعدادات.
+### 2. حماية PIN من الهجمات العنيفة (Brute Force)
+* المحاولات: 5 محاولات فاشلة تؤدي إلى القفل.
+* القفل الأول: 60 ثانية.
+* القفل الثاني: 180 ثانية.
+* القفل الثالث والأعلى: 300 ثانية (ثابتة).
+* تسجيل الدخول الناجح يعيد تعيين العداد لهذا IP.
 
-### 3. تحذير الشهادة (TOFU)
-* عند تغيير ملفات الـ SSL، سيظهر تحذير MITM. هذا إنذار كاذب بسبب تغير بصمة الشهادة.
-* الحل: من إعدادات المتصفح داخل التطبيق اختر Reset Trusted Cert.
+> **ملاحظة:** أثناء فترة القفل، جميع أزرار إدخال PIN تتعطل على جانب العميل. العميل لا يمكنه تجاوز القفل حتى لو تم إدخال PIN الصحيح.
+
+### 3. القائمة البيضاء والحظر التلقائي
+* القائمة البيضاء: الأجهزة الجديدة تطلب: "إضافة للقائمة البيضاء؟ (y/n)".
+* الحظر التلقائي: إذا تم رفض جهاز 3 مرات، يتم حظره بشكل دائم.
+* إعادة الضبط: المالك يمكنه إزالة IPs عبر التيرمينال أو ملف الأمان المحلي JSON.
+
+## تحذير شهادة TOFU؟؟
+
+**TOFU** (الثقة عند الاستخدام الأول) هي طريقة PortDesk للتحقق من شهادة SSL الخاصة بك على جانب العميل. في المرة الأولى التي تتصل فيها عبر HTTPS، يتم حفظ بصمة الشهادة في متصفحك. في كل اتصال لاحق، يتحقق العميل من تطابق البصمة.
+
+### 4. تحذير شهادة TOFU (إنذار كاذب)
+إذا قمت بإعادة إنشاء cert.pem / key.pem، سيظهر العميل تحذير Man-in-the-Middle (MITM). هذا إنذار كاذب بسبب تغير البصمة.
+* الحل: اذهب إلى تبويب Settings في portdesk-> reset trusted cert.
+
+> سيظهر هذا التحذير أيضاً إذا قام شخص ما باستبدال شهادتك بشهادة خبيثة فعلاً. إذا لم تقم بإعادة إنشاء شهادتك لكن ترى هذا التحذير، تعامل معه كتنبيه أمان حقيقي وتحقق قبل المتابعة.
 
 ---
 
-## بث الشاشة والأداء
-* الجودة: تختلف حسب كثافة بكسلات شاشة الكلايانت (DPR) وقوة معالج السيرفر.
-* وضع H264: الأفضل والأسرع، يتطلب وجود FFmpeg في النظام.
-* التأخير (Latency): عبارة عن سلسلة تبدأ من (قوة المعالج في الضغط) ثم (سرعة الـ WiFi) ثم (سرعة المتصفح في العرض).
+## سطر الأوامر والتشغيل
+
+### علامات تشغيل CLI
+مثال: python portdesk-server.py --help
+
+| العلم | الافتراضي | الوصف |
+| :--- | :--- | :--- |
+| -p / --port | 5000 | المنفذ للاستماع عليه |
+| -s / --ssl | off | تفعيل HTTPS |
+| --watch-only | off | تعطيل جميع الإدخالات (عرض فقط) |
+| --backend dxcam|mss | - | إجبار خلفية التقاط الشاشة |
+| --scale FACTOR | 1.0 | تصغير البث (مثلاً 0.75) |
+| --grey | off | وضع الأبيض والأسود (نطاق ترددي منخفض) |
+| --upload-limit | unlimited | الحد الأقصى لحجم الملف (مثلاً 1GB) |
+
+### أوامر التيرمينال (أثناء التشغيل)
+| الأمر | الوصف |
+| :--- | :--- |
+| y / n | الموافقة أو رفض آخر طلب |
+| unblock <ip> | إزالة IP من القائمة السوداء |
+| kick all | فصل الجميع |
+| lockdown off | رفع الحظر النشط |
+| restore security [1-3] | الاستعادة من النسخ الاحتياطي (.bak1-.bak3) |
+
+---
+
+## الأداء والبث
+
+### أوضاع البث
+يدعم PortDesk وضعين للبث يتم اختيارهما تلقائياً عند بدء التشغيل:
+
+- **وضع H264** (الافتراضي عند تثبيت FFmpeg): بث H264 مضغوط بتقنية الأجهزة يُرسل عبر WebSocket ويفك تشفيره في المتصفح باستخدام MSE (Media Source Extensions). نطاق ترددي أقل بكثير وجودة أفضل بمعدلات FPS عالية. يتطلب FFmpeg في PATH. مُشفر الأجهزة يتم اكتشافه تلقائياً (h264_amf → h264_nvenc → h264_qsv → libx264 fallback).
+- **وضع JPEG** (الاحتياطي): إطارات JPEG فردية تُرسل عبر WebSocket مع تحسين delta-patch. يعمل بدون FFmpeg. نطاق ترددي أعلى، استخدام CPU أعلى قليلاً.
+
+الوضع النشط يظهر في كونسول السيرفر عند بدء البث.
+
+* وضع H264: يتطلب FFmpeg. أقل نطاق ترددي، أفضل جودة.
+* وضع JPEG: احتياطي. نطاق ترددي أعلى، لا يحتاج FFmpeg.
+* عوامل الـ Latency: CPU السيرفر (الترميز)، قوة WiFi (النقل)، ومحرك المتصفح (الفك) ...تم معالجة هذا جزئياً في الإصدار الحالي لكن قد يختلف.
+> **باختصار**: ping البث هو سلسلة — CPU السيرفر → الشبكة → عرض العميل. اختناق في أي جزء من هذه السلسلة يزيد من الـ latency الكلي.
+
+*الجودة قد تختلف بين الأجهزة حسب DPR (نسبة بكسلات الجهاز) للشاشة.
+
+**ترميز الأجهزة (h264_amf, h264_nvenc, h264_qsv) يتم اكتشافه تلقائياً عند بدء التشغيل — رسالة log تؤكد أي مُشفر نشط
 
 ---
 
 ## مشاكل معروفة
-* Python 3.14: يسبب مشاكل في الـ Asyncio على ويندوز. ينصح بـ 3.11 أو 3.12.
-* الجيروسكوب والميكروفون: لا يعملان إلا عبر HTTPS.
-* dxcam: يحتاج إعادة تشغيل السيرفر عند تغيير الشاشة في إعدادات الشاشات المتعددة.
+* Python 3.14: مشاكل Asyncio على Windows. استخدم 3.11 أو 3.12.
+* H264: يتطلب FFmpeg في PATH.
+* الجيروسكوب/الميكروفون: يتطلب HTTPS (شغل gen_cert.py).
+* ميكروفون الموبايل: يعمل فقط عبر HTTPS
+* شاشات متعددة: dxcam يرتبط بشاشة واحدة عند بدء التشغيل. تبديل الشاشات أثناء البث يتطلب إعادة تشغيل السيرفر لإعادة تهيئة dxcam.
+
+### مشاكل محتملة:
+
+## مشاكل Windows الخاصة وحلولها
+- **تدخل مضاد الفيروسات**: بعض برامج مضاد الفيروسات قد تكتشف pyautogui كمشتبه وتمنع عملياته.
+- **قيود الجهاز الافتراضي**: في البيئات الافتراضية، محاكاة الإدخال قد تكون مقيدة أو غير موثوقة.
+- **IME (محرر طريقة الإدخال)**: مشاكل مع طرق الإدخال غير الإنجليزية أو الأحرف الخاصة.
+---
+
+## مشاكل macOS الخاصة وحلولها
+
+### مشاكل محتملة:
+- **أذونات الوصول**: macOS يتطلب أذونات وصول صريحة للتطبيقات لمحاكاة الإدخال.
+- **قيود Gatekeeper**: التطبيقات غير الموقعة أو غير المصادقة قد تُمنع من محاكاة الإدخال.
+- **SIP (حماية سلامة النظام)**: قد تقيد محاكاة إدخال معينة على مستوى النظام.
+
+## مشاكل Linux الخاصة وحلولها
+
+### مشاكل محتملة:
+- **وصول Root لـ uinput**: الكيبورد الافتراضي يتطلب صلاحيات root.
+- **توافق Wayland**: xdotool لا يعمل على Wayland.
+
+---
+---
 
 لمتابعة المشروع على GitHub: https://github.com/Lucky-abdo/PortDesk
