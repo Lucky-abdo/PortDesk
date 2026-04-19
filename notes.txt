@@ -1,292 +1,122 @@
-# PortDesk — Notes & Documentation
-
----
+# PortDesk --- Notes & Documentation
 
 ## Overview
-covering security mechanisms (PIN protection, whitelist/blacklist), known issues and their workarounds, platform-specific behavior and requirements (Windows, macOS, Linux), and screen streaming performance characteristics.
+This document covers essential security mechanisms (PIN protection, whitelist/blacklist), known issues and their workarounds, platform-specific behavior (Windows, macOS, Linux), and screen streaming performance characteristics.
 
 ---
 
 ## Quick Fix (Priority 1)
-- If the keyboard in PortDesk does not respond in general, try running the server from the dedicated launch file (start_portdesk.bat) or running it minimized/hidden.
-- On Windows: Open `start_portdesk.bat` (configured for `start /min python "portdesk-server.py"`). This method resolves focus/input issues in most cases.
-- On Linux and Mac: Use the scripts `start_portdesk_linux.sh` or `start_portdesk_mac.sh` (see below) to run the server in the background.
+* Keyboard not responding? Try running the server from the dedicated launch file (start_portdesk.bat) or running it minimized/hidden.
+* On Windows: Open start_portdesk.bat (configured for start /min python "portdesk-server.py"). This resolves focus/input issues in most cases.
+* On Linux/Mac: Use start_portdesk_linux.sh or start_portdesk_mac.sh to run the server in the background.
+
+For any issue not covered here, comment it in discussions
 
 ---
 
-## Problem Description
-- Mobile keyboard input is sent to the server successfully.
-- Server cursor responds (indicating input reception).
-- But characters don't appear on screen intermittently.
-- Issue occurs due to focus, window state, input method, or environment differences.
+## Security & Access Control
+
+### 1. Forgotten PIN / Pattern
+If you are locked out:
+Open portdesk_security.json and delete the "pins" entry for your IP address and save the file. then The server reloads automatically within 2 seconds.
+
+### 2. PIN Brute Force Protection
+* Attempts: 5 failures trigger a lockout.
+* 1st Lockout: 60 seconds.
+* 2nd Lockout: 180 seconds.
+* 3rd+ Lockout: 300 seconds (fixed).
+* Successful login resets the counter for that IP.
+
+### 3. Whitelist & Auto-Blacklist
+* Whitelist: New devices prompt: "Add to whitelist? (y/n)".
+* Auto-Blacklist: If a device is rejected 3 times, it is permanently blocked.
+* Reset: Owner can remove IPs via terminal or local security JSON.
+
+### 4. TOFU Certificate Warning (False Alarm)
+If you regenerate cert.pem / key.pem, the client will show a Man-in-the-Middle (MITM) warning. This is a False Alarm due to the fingerprint change.
+* Fix: Go to Settings tab-> reset trusted cert.
 
 ---
 
-## PIN Security — Brute Force Protection
+## Command Line & Runtime
 
-PortDesk implements an escalating lockout system to protect against brute force PIN attempts:
+### CLI Launch Flags
+Example: python portdesk-server.py --help
 
-- You have **5 attempts** before a lockout is triggered.
-- **1st lockout**: 60 seconds (1 minute).
-- **2nd lockout**: 180 seconds (3 minutes).
-- **3rd lockout and beyond**: 300 seconds (5 minutes) — permanently fixed at this duration.
-- Lockout counters are tracked per IP address and persist as long as the server is running.
-- A successful login resets the attempt counter for that IP.
+| Flag | Default | Description |
+| :--- | :--- | :--- |
+| -p / --port | 5000 | Port to listen on |
+| -s / --ssl | off | Enable HTTPS |
+| --watch-only | off | Disable all input (View only) |
+| --backend dxcam|mss | Force screen capture backend |
+| --scale FACTOR | 1.0 | Downscale stream (e.g. 0.75) |
+| --grey | off | Greyscale mode (low bandwidth) |
+| --upload-limit | unlimited | Max file size (e.g. 1GB) |
 
-> **Note:** During a lockout period, all PIN input buttons are disabled on the client side. The client cannot bypass the lockout even if the correct PIN is entered.
-
----
-
-## Whitelist & Blacklist — Network Security
-
-PortDesk uses a command-line approval system to control which devices can connect:
-
-### Whitelist
-- When a new device attempts to connect, a prompt appears in the server console asking: **"Add to whitelist? (y/n)"**
-- If approved (`y`): the device is saved to the whitelist and can connect freely.
-- If rejected (`n`): the device is denied access. The attempt counter increments.
-
-### Auto-Blacklist
-- If the same device is **rejected 3 times** from the server console, it is automatically added to the **blacklist**.
-- Blacklisted devices are permanently blocked — no prompt is shown, no access is granted.
-- The server console will display: `⛔ Device added to blacklist after 3 rejections`.
-
-### Removing a Device from the Blacklist
-- The server owner can remove a device from the blacklist manually (localhost only via `/security/blacklist/remove`).
-- After removal, the device goes back to the normal approval flow (y/n prompt) — the rejection counter resets.
-- Re-approval is still required even after blacklist removal.
-
-### Client-Side
-- An approved device can view its own whitelist status in the Settings tab.
-- A device can remove **itself** from the whitelist from Settings — but cannot remove other devices.
-- No client has the ability to clear or modify the full whitelist or blacklist.
+### Terminal Commands (While Running)
+| Command | Description |
+| :--- | :--- |
+| y / n | Approve or Reject last request |
+| unblock <ip> | Remove IP from blacklist |
+| kick all | Disconnect everyone |
+| lockdown off | Lift active lockdown |
+| restore security [1-3] | Restore from backup (.bak1-.bak3) |
 
 ---
 
-## Known Issues in Current Version
+## Performance & Streaming (Latency)
 
-The following issues are known and may be encountered in the current release. Please follow the latest updates on GitHub for fixes:
-
-- **WebSocket on Python 3.14**: some asyncio behavior changed in 3.14. It is recommended to use **Python 3.11 or 3.12**.
-- **Screen streaming sharpness**: Quality may vary between devices depending on screen DPR (Device Pixel Ratio) and the client browser's rendering capabilities. This is partially addressed in the current version but may still vary.
-- **H264 streaming**: Requires FFmpeg installed and available in PATH. Without FFmpeg, streaming falls back to JPEG mode automatically. Hardware encoding (h264_amf, h264_nvenc, h264_qsv) is auto-detected at startup — a log message confirms which encoder is active.
-- **Keyboard input on some Windows setups**: May require running the server as Administrator.
-- **Gyroscope control**: Requires HTTPS to be enabled (run `gen_cert.py` first).
-- **Mobile microphone**: Only works over HTTPS.
-- **dxcam on multi-monitor**: The camera instance is created once for a fixed monitor index. Switching monitors while streaming requires a server restart to reinitialize dxcam.
-
-> For the latest fixes and updates, always check: **https://github.com/Lucky-abdo/PortDesk**
+* H264 Mode: Requires FFmpeg. Lowest bandwidth, best quality.
+* JPEG Mode: Fallback. Higher bandwidth, no FFmpeg needed.
+* Latency Factors: Server CPU (encoding), WiFi strength (transfer), and Browser engine (decoding).
 
 ---
 
-## Screen Streaming — Performance & Latency
-
-### Streaming Modes
-PortDesk supports two streaming modes selected automatically at startup:
-
-- **H264 mode** (default when FFmpeg is installed): Hardware-encoded H264 stream delivered via WebSocket and decoded in the browser using MSE (Media Source Extensions). Significantly lower bandwidth and better quality at high FPS. Requires FFmpeg in PATH. Hardware encoder is auto-detected (h264_amf → h264_nvenc → h264_qsv → libx264 fallback).
-- **JPEG mode** (fallback): Individual JPEG frames sent over WebSocket with delta-patch optimization. Works without FFmpeg. Higher bandwidth, slightly higher CPU usage.
-
-The active mode is shown in the server console at streaming start.
-
-### Streaming Quality
-The visual quality of the stream can differ across client devices even with identical server settings. This is influenced by:
-- **Client screen DPR (Device Pixel Ratio)**: High-DPR screens (e.g., Retina displays) may scale the stream differently, affecting perceived sharpness.
-- **Browser rendering engine**: Different browsers handle JPEG decoding and canvas rendering at different speeds and quality levels.
-- **Client screen resolution**: A lower-resolution client screen may display the stream with visible compression artifacts.
-
-### Streaming Ping (Frame Latency)
-The delay between what happens on the server and what appears on the client depends on several factors:
-
-- **Frame capture time**: How fast the server can capture a screenshot of the desktop.
-- **JPEG encoding (server-side)**: The time taken to compress the frame. This is directly tied to the **server CPU performance** — a weaker CPU will produce higher latency.
-- **Network transfer time**: The time the compressed frame takes to travel over the network. Affected by **WiFi signal strength, bandwidth, and interference**.
-- **JPEG decoding (client-side)**: The time the client browser takes to decompress and render the frame.
-- **JPEG quality setting**: Higher quality = larger frame size = more transfer and decode time.
-
-> **In short**: Streaming ping is a chain — server CPU → network → client rendering. A bottleneck in any part of this chain increases total latency.
-
-### Connection Ping (Server Responsiveness)
-The ping between the client and the PortDesk server (e.g., for mouse/keyboard commands) is affected by:
-
-- **Network type**: LAN (same WiFi/router) gives significantly lower ping than WAN (over the internet or mobile data).
-- **WiFi quality**: Distance from the router, interference, and congestion all increase ping.
-- **Router latency**: Some routers introduce additional latency for local traffic routing.
-- **Server load**: High CPU usage on the server machine increases response time for all incoming requests.
-- **WebSocket overhead**: The WebSocket protocol has minimal overhead, but a busy event loop on the server can delay message handling.
-
----
-
-## Windows-Specific Issues and Solutions
-
-### Potential Problems:
-- **Focus Issues**: Keyboard input may not register if the target application window is not in focus or is minimized.
-- **User Account Control (UAC)**: Windows UAC can block or prompt for input simulation attempts, especially when running as a standard user.
-- **Antivirus Interference**: Some antivirus software may detect pyautogui as suspicious and block its operations.
-- **Virtual Machine Restrictions**: In virtualized environments, input simulation might be restricted or unreliable.
-- **IME (Input Method Editor)**: Issues with non-English input methods or special characters.
-
-### Solutions Implemented:
-- **Primary Method**: Uses pyautogui for cross-platform keyboard simulation, which works reliably on Windows.
-- **Shortcut Handling**: Custom `_press_win_shortcut()` function maps common shortcuts to Windows equivalents.
-- **Fallback Mechanisms**: If pyautogui fails, the system logs errors and suggests manual intervention.
-
-### Requirements:
-- Windows GUI environment (not headless).
-- pyautogui package installed (already included in requirements).
-- Administrator privileges recommended for full functionality.
-
-### Troubleshooting Steps:
-1. Ensure the target window is focused and not minimized.
-2. Run the PortDesk server as Administrator to bypass UAC restrictions.
-3. Temporarily disable antivirus real-time protection for testing.
-4. Check Windows Event Viewer for any blocked operations.
-5. Test with simple text first, then shortcuts.
-6. Verify that the Python environment has access to user input devices.
-
----
-
-## macOS-Specific Issues and Solutions
-
-### Potential Problems:
-- **Accessibility Permissions**: macOS requires explicit accessibility permissions for applications to simulate input.
-- **Focus and Window Management**: Input may fail if the target application is not active.
-- **Gatekeeper Restrictions**: Unsigned or unnotarized applications might be blocked from simulating input.
-- **Key Mapping Differences**: Windows-style shortcuts need to be mapped to macOS equivalents.
-- **SIP (System Integrity Protection)**: May restrict certain system-level input simulations.
-
-### Solutions Implemented:
-- **Primary Method**: Uses pyautogui with platform-specific key mappings.
-- **Shortcut Translation**: Custom `_press_mac_shortcut()` function translates Windows shortcuts to macOS Command-based equivalents.
-- **Permission Handling**: The system attempts input simulation and logs permission-related errors for user resolution.
-
-### Requirements:
-- macOS with GUI (not headless).
-- pyautogui package installed.
-- Accessibility permissions enabled for the Python/Terminal application running PortDesk.
-
-### Troubleshooting Steps:
-1. Enable Accessibility permissions: System Preferences > Security & Privacy > Privacy > Accessibility.
-2. Restart the PortDesk server after granting permissions.
-3. Ensure the target application is in focus.
-4. Test with simple text input first.
-5. Check Console.app for permission denied errors.
-6. If using a virtual environment, ensure the Python executable has permissions.
-7. For Gatekeeper issues, right-click the script and select "Open" to bypass restrictions.
-
----
-
-## Linux-Specific Issues and Solutions
-
-### Potential Problems:
-- **Root Access for uinput**: Virtual keyboard requires root privileges.
-- **Wayland Compatibility**: xdotool doesn't work on Wayland.
-- **Missing Dependencies**: uinput or xdotool packages may not be installed.
-- **Headless Environments**: No GUI means input simulation fails.
-- **Environment Variables**: DISPLAY or WAYLAND_DISPLAY not set properly.
-
-### Solutions Implemented:
-1. **Virtual Keyboard Device (Primary)**: Uses uinput to create kernel-level input device.
-2. **xdotool Fallback (Secondary)**: Command-line tool for X11-based input simulation.
-3. **pyautogui Fallback (Tertiary)**: Cross-platform library as final backup.
-
-### Requirements:
-- Linux kernel with uinput support.
-- `python-uinput` package: `pip install python-uinput`.
-- Root privileges for uinput.
-- X11 display server for xdotool.
-- `xdotool` installed: `sudo apt install xdotool`.
-- pyautogui package (already included).
-
-### Troubleshooting Steps:
-1. Check console output for error messages.
-2. Verify environment variables (DISPLAY, WAYLAND_DISPLAY).
-3. Ensure required packages are installed.
-4. Try running with root privileges for uinput.
-5. Check if running in headless mode.
-6. For Wayland: Use XWayland if available, or rely on uinput/pyautogui.
+## Known Issues
+* Python 3.14: Asyncio issues on Windows. Use 3.11 or 3.12.
+* H264: Requires FFmpeg in PATH.
+* Gyroscope/Mic: Requires HTTPS (run gen_cert.py).
+* Multi-monitor: dxcam locks to one monitor at startup.
 
 ---
 ---
-<div dir="rtl">
 
-ملاحظات بالعربي
-إصلاح سريع (الأولوية الأولى)
-إذا كان الكيبورد في PortDesk لا يستجيب بشكل عام، جرب تشغيل السيرفر من ملف التشغيل الخاص (start_portdesk.bat) أو تشغيله بشكل مخفي/minimized.
+# PortDesk --- ملاحظات وتوثيق
 
-في ويندوز: افتح start_portdesk.bat (مُعد لـ start /min python "portdesk-server.py"). هذه الطريقة تحل مشكلة focus/input في الأغلب.
-
-في لينكس وماك: استخدم السكربتات start_portdesk_linux.sh أو start_portdesk_mac.sh لتشغيل السيرفر في الخلفية.
-
-أمان PIN — الحماية من محاولات التخمين
-عندك 5 محاولات قبل ما يتم القفل.
-
-القفل الأول: 60 ثانية.
-
-القفل الثاني: 180 ثانية (3 دقايق).
-
-القفل الثالث وما بعده: 300 ثانية (5 دقايق) — ثابت.
-
-أثناء القفل، أزرار الـ PIN بتتعطل على الكلايانت ومفيش طريقة للتحايل حتى لو الـ PIN صح.
-
-القايمة البيضا والسودا — أمان الشبكة
-لما جهاز جديد يحاول يتصل، بيظهر في الكوماند سؤال: "تضيفه للقايمة البيضا؟ (y/n)"
-
-لو وافقت (y): الجهاز بيتحفظ ويقدر يتصل.
-
-لو رفضت (n): الجهاز ممنوع. العداد بيزيد.
-
-لو نفس الجهاز اترفض 3 مرات: بيتضاف للقايمة السودا تلقائياً ويتحظر نهائياً.
-
-صاحب السيرفر يقدر يشيل الجهاز من القايمة السودا، بس لازم يوافق عليه تاني من الكوماند.
-
-الكلايانت يقدر يشيل نفسه بس من القايمة البيضا من الإعدادات — ومينفعش يعدل القايمة البيضا أو السودا.
-
-مشاكل معروفة في النسخة الحالية
-WebSocket على Python 3.14: بعض سلوكيات asyncio اتغيرت في 3.14. استخدم Python 3.11 أو 3.12.
-
-جودة البث: ممكن تختلف بين الأجهزة حسب الـ DPR وقدرة المتصفح على الرندرة. حتى لو إعدادات السيرفر واحدة، الجودة ممكن تتفاوت من جهاز للتاني.
-
-بث H264: يحتاج FFmpeg مثبت ومتاح في الـ PATH. من غيره، البث بيرجع تلقائياً لوضع JPEG. الـ hardware encoding (h264_amf أو h264_nvenc أو h264_qsv) بيتكتشف تلقائياً عند بدء التشغيل ورسالة في الكوماند بتأكد الـ encoder المستخدم.
-
-الكيبورد على بعض إعدادات Windows: ممكن يحتاج تشغيل السيرفر كـ Administrator.
-
-التحكم بالجيروسكوب: يحتاج HTTPS مفعّل.
-
-ميكروفون الموبايل: يشتغل بس على HTTPS.
-
-dxcam مع شاشات متعددة: الـ camera instance بيتعمل مرة واحدة عند أول تشغيل للبث. لو غيرت الشاشة المختارة وفيه مشاكل، أعد تشغيل السيرفر.
-
-لمتابعة آخر التحديثات والإصلاحات: https://github.com/Lucky-abdo/PortDesk
+## إصلاح سريع (الأولوية الأولى)
+* الكيبورد لا يستجيب؟ جرب تشغيل السيرفر من ملف start_portdesk.bat أو تشغيله بشكل minimized. في ويندوز، هذا يحل أغلب مشاكل الـ focus.
+* في لينكس وماك: استخدم سكربتات .sh لتشغيل السيرفر في الخلفية.
 
 ---
 
-## بث الشاشة — الأداء والتأخير
+## نظام الأمان والحماية
 
-### جودة البث
-الجودة البصرية بتتأثر بعوامل على جانب الكلايانت:
-- **DPR بتاع شاشة الكلايانت**: الشاشات عالية الكثافة (زي Retina) ممكن تعرض البث بطريقة مختلفة وتأثر على الحدة.
-- **المتصفح**: كل متصفح بيفك ضغط الـ JPEG ويعرضه بسرعة وجودة مختلفة.
-- **دقة شاشة الكلايانت**: الشاشات المنخفضة الدقة ممكن تظهر ضغط واضح على الصورة.
+### 1. حماية الـ PIN من التخمين
+* عندك 5 محاولات قبل القفل.
+* مدد القفل: دقيقة واحدة ثم 3 دقائق ثم 5 دقائق (ثابتة بعد ذلك).
+* أثناء القفل، تتعطل الأزرار تماما لمنع أي تحايل.
 
-### بنج البث (تأخير الفريم)
-التأخير بين ما بيحصل على السيرفر وما بيظهر على الكلايانت بيعتمد على:
+### 2. القائمة البيضاء والسوداء
+* الموافقة: عند اتصال جهاز جديد، يجب أن تضغط y في التيرمينال للموافقة.
+* الحظر التلقائي: الرفض 3 مرات يضع الجهاز في القائمة السوداء نهائيا.
+* إدارة المستخدم: الكلايانت يمكنه إزالة نفسه فقط من الإعدادات.
 
-- **وقت كابتشر الفريم**: سرعة السيرفر في التقاط لقطة الشاشة.
-- **تشفير JPEG (على السيرفر)**: وقت ضغط الفريم — مرتبط مباشرة بـ **CPU بتاع السيرفر**. كل ما الـ CPU أضعف، الـ latency أعلى.
-- **وقت نقل البيانات على الشبكة**: بيتأثر بـ **قوة الـ WiFi، الـ bandwidth، والتشويش**.
-- **فك تشفير JPEG (على الكلايانت)**: الوقت اللي المتصفح بياخده عشان يفك الضغط ويعرض الفريم.
-- **جودة الـ JPEG**: جودة أعلى = فريم أكبر = وقت نقل وفك ضغط أكتر.
+### 3. تحذير الشهادة (TOFU)
+* عند تغيير ملفات الـ SSL، سيظهر تحذير MITM. هذا إنذار كاذب بسبب تغير بصمة الشهادة.
+* الحل: من إعدادات المتصفح داخل التطبيق اختر Reset Trusted Cert.
 
-> **باختصار**: بنج البث هو سلسلة — CPU السيرفر ← الشبكة ← رندرة الكلايانت. أي نقطة ضعف في السلسلة دي بترفع الـ latency الكلي.
+---
 
-### بنج الاتصال بالسيرفر
-التأخير بين الكلايانت والسيرفر (للأوامر زي الماوس والكيبورد) بيتأثر بـ:
+## بث الشاشة والأداء
+* الجودة: تختلف حسب كثافة بكسلات شاشة الكلايانت (DPR) وقوة معالج السيرفر.
+* وضع H264: الأفضل والأسرع، يتطلب وجود FFmpeg في النظام.
+* التأخير (Latency): عبارة عن سلسلة تبدأ من (قوة المعالج في الضغط) ثم (سرعة الـ WiFi) ثم (سرعة المتصفح في العرض).
 
-- **نوع الشبكة**: LAN (نفس الـ WiFi/راوتر) بيدي بنج أقل بكتير من WAN (إنترنت أو داتا موبايل).
-- **جودة الـ WiFi**: البُعد عن الراوتر، التشويش، وازدحام الشبكة كلها بترفع البنج.
-- **تأخير الراوتر**: بعض الراوترات بتضيف تأخير على ترافيك الـ LAN.
-- **حمل السيرفر**: لو الـ CPU على السيرفر مشغول، ده بيأثر على سرعة رد السيرفر على الطلبات الواردة.
-- **أوفرهيد الـ WebSocket**: الـ WebSocket نفسه خفيف، بس لو الـ event loop على السيرفر مزحوم ممكن يتأخر في معالجة الرسايل.
+---
 
-</div>
+## مشاكل معروفة
+* Python 3.14: يسبب مشاكل في الـ Asyncio على ويندوز. ينصح بـ 3.11 أو 3.12.
+* الجيروسكوب والميكروفون: لا يعملان إلا عبر HTTPS.
+* dxcam: يحتاج إعادة تشغيل السيرفر عند تغيير الشاشة في إعدادات الشاشات المتعددة.
+
+لمتابعة المشروع على GitHub: https://github.com/Lucky-abdo/PortDesk
