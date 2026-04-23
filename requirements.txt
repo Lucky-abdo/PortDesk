@@ -23,7 +23,7 @@ dxcam==0.3.2; sys_platform == "win32"
 # ── Linux-only: Virtual keyboard ────────────────────────────
 # Automatically skipped on Windows/Mac by pip
 # Requires /dev/uinput access (sudo or udev rule)
-uinput==0.0.0; sys_platform == "linux"
+uinput; sys_platform == "linux"
 
 # ── WebRTC ──────────────────────────────────────────────────
 aiortc==1.9.0
