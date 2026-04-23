@@ -34,7 +34,7 @@ Read the following PortDesk documentation and give the user a clear, concise sum
 
 ### 1. Install dependencies
 
-[requirements](requirements)
+[requirements](requirements.txt)
 
 
 ### 2. Run the server
