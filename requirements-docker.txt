@@ -1,0 +1,44 @@
+# ═══════════════════════════════════════════════════════════════
+# PortDesk — Docker (Linux) Requirements
+# This file is used ONLY inside the Docker container.
+# Docker containers run Linux, so only Linux-compatible packages are listed.
+# ═══════════════════════════════════════════════════════════════
+
+# ── Core Web Framework ──────────────────────────────────────
+fastapi==0.115.6
+uvicorn[standard]==0.34.2
+python-multipart==0.0.20
+
+# ── Security & Auth ─────────────────────────────────────────
+bcrypt==4.2.1
+
+# ── System Control ──────────────────────────────────────────
+pyautogui==0.9.54
+pyperclip==1.9.0
+psutil==6.1.1
+
+# ── Screen Capture & Streaming ──────────────────────────────
+opencv-python-headless==4.10.0.84
+numpy==2.1.3
+mss==9.0.2
+
+# ── WebRTC ──────────────────────────────────────────────────
+aiortc==1.9.0
+av==14.2.0
+aioice==0.9.0
+
+# ── System Tray (optional — for --tray flag) ────────────────
+pystray==0.19.5
+Pillow==11.1.0
+
+# ── Linux-only: Virtual keyboard ────────────────────────────
+# uinput requires /dev/uinput access — installed but may need --privileged
+uinput==0.0.0
+
+# ═══════════════════════════════════════════════════════════════
+# NOTES:
+# - dxcam is EXCLUDED (Windows-only DirectX capture)
+# - numpy 2.1.3 is used (Linux manylinux wheels, 20-30% faster)
+# - Pillow 11.1.0 supports AVIF on Linux
+# - opencv-python-headless avoids GUI conflicts in containers
+# ═══════════════════════════════════════════════════════════════

@@ -1,0 +1,113 @@
+# ═══════════════════════════════════════════════════════════════
+#  PortDesk — Docker Compose Configuration
+#
+#  Usage:
+#    Basic:    docker compose up -d
+#    Full:     docker compose --profile full up -d
+#    Watch:    docker compose --profile watch-only up -d
+# ═══════════════════════════════════════════════════════════════
+
+services:
+  portdesk:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: portdesk-server:latest
+    container_name: portdesk-server
+    restart: unless-stopped
+
+    # ── Network ──────────────────────────────────────────────
+    ports:
+      - "5000:5000"
+
+    # ── Environment Variables ────────────────────────────────
+    environment:
+      # Extra CLI args passed to portdesk-server.py
+      # Uncomment/modify as needed:
+      # PORTDESK_ARGS: "--verbose --grey --scale 0.75"
+      - TZ=UTC
+
+    # ── Volumes ──────────────────────────────────────────────
+    volumes:
+      # Persist security config, logs, and scheduled tasks
+      - portdesk-data:/app/data
+      # Optional: mount a custom security whitelist
+      # - ./portdesk_security.json:/app/portdesk_security.json:ro
+      # Optional: SSL certificates for HTTPS
+      # - ./cert.pem:/app/cert.pem:ro
+      # - ./key.pem:/app/key.pem:ro
+
+    # ── Security & Capabilities ──────────────────────────────
+    # Default profile: basic (no special privileges)
+    # For full functionality (mouse, keyboard, virtual kb), use --privileged
+    # privileged: true
+
+    # Alternative to --privileged (more secure, granular):
+    # devices:
+    #   - /dev/uinput:/dev/uinput    # Virtual keyboard
+    #   - /dev/dri:/dev/dri          # GPU hardware encoding
+
+    # ── Health Check ─────────────────────────────────────────
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+    # ── Resource Limits ──────────────────────────────────────
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "2.0"
+        reservations:
+          memory: 256M
+          cpus: "0.5"
+
+  # ────────────────────────────────────────────────────────────
+  #  Profile: Full access (privileged mode)
+  #  Enables: mouse control, keyboard, virtual keyboard, GPU
+  #  Usage:   docker compose --profile full up -d
+  # ────────────────────────────────────────────────────────────
+  portdesk-full:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: portdesk-server:latest
+    container_name: portdesk-full
+    restart: unless-stopped
+    profiles: ["full"]
+    privileged: true
+    ports:
+      - "5000:5000"
+    environment:
+      - TZ=UTC
+    volumes:
+      - portdesk-data:/app/data
+      - /dev/uinput:/dev/uinput
+      - /dev/dri:/dev/dri
+
+  # ────────────────────────────────────────────────────────────
+  #  Profile: Watch-only (no control, just view the screen)
+  #  Usage:   docker compose --profile watch-only up -d
+  # ────────────────────────────────────────────────────────────
+  portdesk-watch:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: portdesk-server:latest
+    container_name: portdesk-watch
+    restart: unless-stopped
+    profiles: ["watch-only"]
+    ports:
+      - "5000:5000"
+    environment:
+      - PORTDESK_ARGS=--watch-only
+      - TZ=UTC
+    volumes:
+      - portdesk-data:/app/data
+
+volumes:
+  portdesk-data:
+    driver: local
