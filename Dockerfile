@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxrandr-dev \
     libglib2.0-dev \
     libgl1-mesa-dev \
+    libudev-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python packages into a separate prefix for clean copy
@@ -58,6 +59,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     libdbus-1-3 \
     xvfb \
+    python3-uinput \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy installed Python packages from builder stage
