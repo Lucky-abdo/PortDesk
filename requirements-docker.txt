@@ -1,5 +1,4 @@
 # ═══════════════════════════════════════════════════════════════
-# PortDesk — Docker (Linux) Requirements
 # This file is used ONLY inside the Docker container.
 # Docker containers run Linux, so only Linux-compatible packages are listed.
 # ═══════════════════════════════════════════════════════════════
