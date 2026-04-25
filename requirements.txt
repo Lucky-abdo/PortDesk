@@ -59,3 +59,4 @@ Pillow==12.2.0
 # Windows:  7+ (10/11 recommended)
 # Linux:    Ubuntu 20.04+, Debian 11+, or any modern distro
 # macOS:    10.14 (Mojave) or later
+dnspython>=2.6.1 # not directly required, pinned by Snyk to avoid a vulnerability
