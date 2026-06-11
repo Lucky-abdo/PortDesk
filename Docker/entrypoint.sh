@@ -15,12 +15,6 @@ else
     exit 1
 fi
 
-# Auto-generate SSL certificate if missing
-if [ ! -f /app/cert.pem ] || [ ! -f /app/key.pem ]; then
-    echo "  ℹ  Generating self-signed certificate..."
-    python /app/generate_cert.py
-fi
-
 # Start Xvfb if no display is available (headless mode)
 if [ -z "$DISPLAY" ]; then
     echo "  ℹ  Starting Xvfb on :99..."

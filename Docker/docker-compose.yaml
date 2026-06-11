@@ -12,8 +12,8 @@ version: "3.8"
 services:
   portdesk:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: Docker/Dockerfile
     container_name: portdesk
     privileged: true
     restart: unless-stopped
@@ -23,9 +23,9 @@ services:
 
     volumes:
       - /dev/uinput:/dev/uinput
-      - ./data:/app/data
-      - ./cert.pem:/app/cert.pem:ro
-      - ./key.pem:/app/key.pem:ro
+      - ../data:/app/data
+      - ../cert.pem:/app/cert.pem:ro
+      - ../key.pem:/app/key.pem:ro
 
     environment:
       - DISPLAY=:99
@@ -38,6 +38,3 @@ services:
       timeout: 5s
       start_period: 10s
       retries: 3
-
-    # Auto-generate certificate on first run if missing
-    # (handled by entrypoint.sh)

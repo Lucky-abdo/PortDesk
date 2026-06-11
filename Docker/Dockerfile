@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc g++ libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./requirements.txt
+COPY requirements-docker.txt ./requirements.txt
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────
@@ -41,7 +41,6 @@ WORKDIR /app
 # Flexible: look for SERVER.py or portdesk-server.py
 COPY SERVER.py* portdesk-server.py* ./
 COPY CLIENT.html* portdesk_client.html* ./
-COPY generate_cert.py ./
 COPY entrypoint.sh ./
 
 RUN chmod +x entrypoint.sh || true
