@@ -5,17 +5,23 @@ echo "════════════════════════�
 echo "  PortDesk Docker Container Starting..."
 echo "════════════════════════════════════════════════"
 
-# دعم المرونة: لو SERVER.py مش موجود، استخدم الاسم القديم
+# Flexible: if SERVER.py not found, use the old name
 if [ -f /app/SERVER.py ]; then
     SERVER_FILE="/app/SERVER.py"
 elif [ -f /app/portdesk-server.py ]; then
     SERVER_FILE="/app/portdesk-server.py"
 else
-    echo "❌ لم يتم العثور على SERVER.py أو portdesk-server.py"
+    echo "❌ SERVER.py or portdesk-server.py not found"
     exit 1
 fi
 
-# باقي الكود زي ما هو (Xvfb + uinput + ...)
+# Auto-generate SSL certificate if missing
+if [ ! -f /app/cert.pem ] || [ ! -f /app/key.pem ]; then
+    echo "  ℹ  Generating self-signed certificate..."
+    python /app/generate_cert.py
+fi
+
+# Start Xvfb if no display is available (headless mode)
 if [ -z "$DISPLAY" ]; then
     echo "  ℹ  Starting Xvfb on :99..."
     Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
@@ -23,7 +29,10 @@ if [ -z "$DISPLAY" ]; then
     sleep 1
 fi
 
-# ... (باقي الكود)
+# Ensure uinput device is accessible
+if [ -e /dev/uinput ]; then
+    chmod 666 /dev/uinput 2>/dev/null || true
+fi
 
 echo "════════════════════════════════════════════════"
 echo "  Starting PortDesk Server..."
