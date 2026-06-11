@@ -1,0 +1,89 @@
+import socket, os, ipaddress, datetime
+from cryptography import x509
+from cryptography.x509.oid import NameOID
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+# استخدم pd_config عشان يدعم إعادة تنظيم المجلدات
+try:
+    import pd_config as _pd_config
+    BASE_DIR = _pd_config.BASE_DIR
+except ImportError:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Detect the primary LAN IP (no traffic is actually sent — UDP connect just
+# picks the outbound interface). Falls back to loopback on any failure.
+local_ip = "127.0.0.1"
+try:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+    finally:
+        s.close()
+except OSError:
+    local_ip = "127.0.0.1"
+
+key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+subject = issuer = x509.Name([
+    x509.NameAttribute(NameOID.COMMON_NAME, local_ip),
+    x509.NameAttribute(NameOID.ORGANIZATION_NAME, "PCC"),
+])
+
+# FIX S5: datetime.utcnow() is deprecated in Python 3.12+. Use timezone-aware
+# UTC now (the x509 builder stores naive UTC internally, so strip tzinfo).
+_now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
+# Build the Subject Alternative Name list. Include the LAN IP only when it is a
+# valid, non-loopback address (avoids a duplicate 127.0.0.1 SAN entry).
+_san = [
+    x509.IPAddress(ipaddress.ip_address('127.0.0.1')),
+    x509.DNSName('localhost'),
+]
+try:
+    _lan = ipaddress.ip_address(local_ip)
+    if not _lan.is_loopback:
+        _san.insert(0, x509.IPAddress(_lan))
+except ValueError:
+    pass
+
+cert = (
+    x509.CertificateBuilder()
+    .subject_name(subject)
+    .issuer_name(issuer)
+    .public_key(key.public_key())
+    .serial_number(x509.random_serial_number())
+    .not_valid_before(_now)
+    .not_valid_after(_now + datetime.timedelta(days=3650))
+    .add_extension(x509.SubjectAlternativeName(_san), critical=False)
+    .sign(key, hashes.SHA256())
+)
+
+cert_path = os.path.join(BASE_DIR, "cert.pem")
+key_path  = os.path.join(BASE_DIR, "key.pem")
+
+with open(cert_path, "wb") as f:
+    f.write(cert.public_bytes(serialization.Encoding.PEM))
+
+with open(key_path, "wb") as f:
+    f.write(key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.TraditionalOpenSSL,
+        serialization.NoEncryption()
+    ))
+
+# Restrict the private key to owner-only read/write (best-effort on POSIX).
+try:
+    os.chmod(key_path, 0o600)
+except OSError:
+    pass
+
+print(f"✅ تم إنشاء الشهادة:")
+print(f"   cert.pem → {cert_path}")
+print(f"   key.pem  → {key_path}")
+print(f"   IP: {local_ip}")
+print(f"\n📱 على الموبايل:")
+print(f"   1. افتح https://{local_ip}:5000 في المتصفح")
+print(f"   2. اضغط 'Advanced' → 'Proceed'")
+print(f"   أو ثبّت cert.pem يدوياً: Settings → Security → Install certificate")

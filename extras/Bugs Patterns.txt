@@ -1,0 +1,1048 @@
+#
+---
+
+## PATTERN 1 — Session State Set Before Auth Completes
+**المشكلة:** تعيين `_active_client_ws` أو `_active_client_ip` قبل إتمام HMAC/PIN
+**أمثلة حقيقية:** C4 (WS)، M18 (DC)
+**القاعدة:** أي كود بيعمل `_active_client_ws = X` لازم يكون **بعد** `hmac_ok` وبعد PIN verification
+```python
+# ❌ WRONG
+_active_client_ws = ws          # set early
+await send_hmac_challenge()     # auth comes after
+
+# ✅ CORRECT
+await complete_hmac_auth()      # auth first
+_active_client_ws = ws          # then set
+```
+
+---
+
+## PATTERN 2 — Duplicate Method Definition (Python Silent Override)
+**المشكلة:** Python بيأخذ التعريف الأخير في الـ class، الأول يبقى dead code
+**مثال حقيقي:** C2 — `_capture()` متعرفة مرتين في `ScreenCaptureTrack`
+**القاعدة:** قبل إضافة method في class موجود، ابحث عن اسمها أولاً
+```bash
+grep -n "def method_name" portdesk-server.py  # must return exactly 1 result
+```
+
+---
+
+## PATTERN 3 — Missing `global` Declaration for Module-Level Variables
+**المشكلة:** assignment في function بدون `global` → بتعمل local variable خفية
+**مثال حقيقي:** `_current_stream_mode` في `screen_worker` كان دايماً 'idle'
+**القاعدة:** كل متغير module-level بيتعدل في function لازم يكون في `global` declaration
+```python
+# ❌ WRONG — creates local, global unchanged
+def screen_worker():
+    _current_stream_mode = 'JPEG'  # local!
+
+# ✅ CORRECT
+def screen_worker():
+    global _current_stream_mode    # declare first
+    _current_stream_mode = 'JPEG'
+```
+
+---
+
+## PATTERN 4 — innerHTML Without Sanitization
+**المشكلة:** أي data من السيرفر (أسماء ملفات، processes، macros) تروح لـ innerHTML = XSS
+**مثال حقيقي:** H8، H9 — 42 innerHTML usage، DOMPurify بيتجاهل 39 منهم
+**القاعدة:** أي string من server/OS يروح لـ DOM لازم يمر على `_safeHTML()` أو `textContent`
+```javascript
+// ❌ WRONG
+el.innerHTML = serverData.name;
+
+// ✅ CORRECT (server data with possible HTML)
+el.innerHTML = _safeHTML(serverData.name);
+
+// ✅ BETTER (plain text, no HTML needed)
+el.textContent = serverData.name;
+```
+
+---
+
+## PATTERN 5 — Blocking Call in Async Function
+**المشكلة:** `os.stat`, `os.walk`, `time.sleep` في `async def` بيبلوكوا الـ event loop
+**أمثلة حقيقية:** H12, Audit-C4, Audit-C5, Audit-C6, Audit-C7
+**القاعدة:** أي I/O أو CPU-heavy operation في async function لازم يكون في `run_in_executor` أو `await asyncio.sleep()`
+```python
+# ❌ WRONG
+async def handler():
+    stat = os.stat(path)  # blocks event loop
+    time.sleep(0.1)       # blocks event loop
+    thread.join(timeout=1) # blocks event loop
+
+# ✅ CORRECT
+async def handler():
+    loop = asyncio.get_running_loop()
+    stat = await loop.run_in_executor(None, os.stat, path)
+    await asyncio.sleep(0.1)
+    await loop.run_in_executor(None, thread.join, 1.0)
+```
+
+---
+
+## PATTERN 6 — Optional Dependency Without Guard
+**المشكلة:** استخدام library ممكن تكون مش موجودة بدون فحص
+**مثال حقيقي:** C9 — `_bcrypt.checkpw()` بدون `BCRYPT_AVAILABLE` check
+**القاعدة:** كل optional import له `_AVAILABLE` flag، لازم يتفحص قبل الاستخدام
+```python
+# ❌ WRONG
+_bcrypt.checkpw(...)  # crashes if bcrypt not installed
+
+# ✅ CORRECT
+if not BCRYPT_AVAILABLE:
+    return JSONResponse({'error': 'bcrypt required'}, 400)
+_bcrypt.checkpw(...)
+```
+
+---
+
+## PATTERN 7 — ZIP Generator Buffer Corruption
+**المشكلة:** إغلاق ZipFile وفتح واحد جديد في نفس الـ streaming generator بينتج ZIP ملفات متصلة مش صحيحة
+**مثال حقيقي:** C6, Audit-C8 — كل multi-file ZIP كان corrupt بسبب chunked approach
+**القاعدة:** خلي ZipFile واحد يكتب كل الحاجات، وبعدين اقفل واقرأ الـ buffer مرة واحدة
+```python
+# ❌ WRONG — produces concatenated ZIP archives (invalid)
+if buf.tell() > 50 * 1024 * 1024:
+    zf.close(); buf.seek(0); yield buf.read()
+    buf = io.BytesIO()
+    zf = zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED)
+
+# ✅ CORRECT — single complete ZIP
+with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+    for p in paths:
+        zf.write(p, arcname)
+buf.seek(0)
+yield buf.read()
+```
+
+---
+
+## PATTERN 8 — Stale Timestamps in Queued Messages
+**المشكلة:** messages بتتبني بـ `_ts:Date.now()` وقت الـ emit، لو اتبعتوا بعد وقت طويل بيترفضوا بالـ replay protection
+**مثال حقيقي:** N1 — `_wsQueue` بيحتفظ بـ messages بـ `_ts` قديم
+**القاعدة:** الـ `_ts` لازم يتضاف وقت الـ send مش وقت الـ queue
+```javascript
+// ❌ WRONG — _ts frozen at queue time
+_wsQueue.push(JSON.stringify({_ev:event, _ts:Date.now(), ...data}));
+
+// ✅ CORRECT — _ts added at send time
+_wsQueue.push(JSON.stringify({_ev:event, ...data}));
+// on flush: add fresh _ts
+_wsQueue.forEach(m => {
+    var d=JSON.parse(m); d._ts=Date.now();
+    _ws.send(JSON.stringify(d));
+});
+```
+
+---
+
+## PATTERN 9 — CORS Without Private IP Validation
+**المشكلة:** فحص `origin == f'http://{host}'` بدون التحقق إن host هو private IP → DNS Rebinding
+**مثال حقيقي:** H1
+**القاعدة:** CORS check لازم يتحقق إن الـ host هو private/local IP
+```python
+PRIVATE_PREFIXES = ('192.168.', '10.', '172.', '127.', 'localhost', '::1')
+
+def _is_private_host(host):
+    h = host.split(':')[0]
+    return any(h.startswith(p) for p in PRIVATE_PREFIXES)
+
+# ✅ CORRECT
+if origin and host and _is_private_host(host):
+    if origin in (f'http://{host}', f'https://{host}'):
+        # allow
+```
+
+---
+
+## PATTERN 10 — Path Check Using `in` Instead of `startswith`
+**المشكلة:** `dangerous_path in exe_path` → `C:\malware\system32\evil.exe` بيتحمى
+**مثال حقيقي:** H2 — tasks_kill
+**القاعدة:** path checks دايماً بـ `startswith(os.path.normpath(...))`
+```python
+# ❌ WRONG
+if any(p in exe_path for p in PROTECTED):  # C:\malware\system32\ bypasses
+
+# ✅ CORRECT
+norm = os.path.normpath(exe_path).lower()
+if any(norm.startswith(os.path.normpath(p).lower()) for p in PROTECTED):
+```
+
+---
+
+## PATTERN 11 — Dead Code After Refactor (Silent Override/Orphan)
+**المشكلة:** بعد refactor، functions أو classes قديمة بتفضل موجودة وممكن تشتغل بدل الجديدة
+**أمثلة:** L2 (`_get_dxcam_camera`)، L6 (WS screen handlers)، C2 (duplicate `_capture`)
+**القاعدة:** بعد كل refactor، اعمل grep للأسماء القديمة وتأكد إنها اتحذفت أو مش بتتنادى
+
+---
+
+## PATTERN 12 — Clipboard Overwrite Without Backup
+**المشكلة:** `pyperclip.copy(text)` بيبعت النص للـ clipboard ويدمر اللي كان فيه
+**مثال حقيقي:** M14 — `type_text`
+**القاعدة:** قبل كتابة الـ clipboard، احفظ القيمة القديمة وارجعلها بعدين
+```python
+# ✅ CORRECT
+old = pyperclip.paste()
+try:
+    pyperclip.copy(text)
+    pyautogui.hotkey('ctrl','v')
+finally:
+    time.sleep(0.1)
+    pyperclip.copy(old)
+```
+
+---
+
+## PATTERN 13 — No Guard for `_webrtcMode` and Similar Global State
+**المشكلة:** متغيرات بتتستخدم قبل ما تتعرف (JavaScript hoisting مش موجود في var declarations داخل functions)
+**مثال حقيقي:** C1 — `_webrtcMode` used 10x never declared
+**القاعدة:** كل global JS variable لازم تكون في `var declarations` section في أول الملف
+
+---
+
+## PATTERN 14 — Custom Crypto Missing Constant-Time Comparison
+**المشكلة:** لما تبدل library (زي bcrypt) بـ implementation مخصص، سهل تنسى `hmac.compare_digest` وتستخدم `==` العادي → timing attack
+**مثال حقيقي:** Phase 1 — `verify_pin` كان ممكن يستخدم `dk.hex() == dk_s` بدل `hmac.compare_digest`
+**القاعدة:** كل مقارنة hash/password/token لازم تكون constant-time
+```python
+# ❌ WRONG — timing leak
+if dk.hex() == dk_s:
+    return True
+
+# ✅ CORRECT — constant-time
+return hmac.compare_digest(dk.hex(), dk_s)
+```
+
+---
+
+## PATTERN 15 — Custom HTTP Parser Missing Size Limits
+**المشكلة:** لما تبني HTTP server مخصص، سهل تنسى تحدد limits للـ request size و header size و WebSocket frame size → OOM / DoS
+**مثال حقيقي:** Phase 2 — portdesk_http.py كان بدون header count limit
+**القاعدة:** كل parser مخصص لازم يفرض limits صارمة على كل input dimension
+```python
+# ✅ CORRECT — enforce limits in custom parser
+MAX_HEADERS = 100
+MAX_HEADER_SIZE = 64 * 1024      # 64KB headers max
+MAX_BODY_SIZE = 100 * 1024 * 1024 # 100MB body max
+MAX_WS_FRAME = 10 * 1024 * 1024   # 10MB WebSocket frame max
+
+header_count = 0
+total_header_size = 0
+while True:
+    line = await reader.readline()
+    header_count += 1
+    total_header_size += len(line)
+    if header_count > MAX_HEADERS or total_header_size > MAX_HEADER_SIZE:
+        return None  # or raise _BadRequest
+```
+
+---
+
+## PATTERN 16 — Library Replacement Breaking Hash Format Compatibility
+**المشكلة:** تبدل hashing library وتغير الفورمات بدون migration path → الـ hashes القديمة تبقى مش مقروءة
+**مثال حقيقي:** Phase 1 — bcrypt hashes ($2b$...) مش متوافقة مع PBKDF2 format (pbkdf2:sha256:...)
+**القاعدة:** لما تبدل crypto library، خلي الفورمات القديمة تتحقق أولاً أو وفّر migration واضح
+```python
+# ✅ CORRECT — detect old format and guide migration
+def verify_pin(pin: str, stored: str) -> bool:
+    if stored.startswith('$2'):
+        # Legacy bcrypt — no longer supported
+        raise ValueError("Legacy bcrypt hash. Please reset your PIN.")
+    # Current: pbkdf2:sha256:{rounds}:{salt_hex}:{dk_hex}
+    _, _, rounds_s, salt_s, dk_s = stored.split(':')
+    ...
+```
+
+---
+
+## PATTERN 17 — Async Server Missing Request Timeout
+**المشكلة:** custom asyncio server بدون timeout → client بطيء أو malicious يربك الـ connection للأبد → resource exhaustion
+**مثال حقيقي:** Phase 2 — WebSocket reads كانت بدون idle timeout
+**القاعدة:** كل connection في custom server لازم يكون عنده timeout صريح
+```python
+# ✅ CORRECT — HTTP requests
+async def handle_connection(reader, writer):
+    request = await asyncio.wait_for(read_request(reader), timeout=30.0)
+
+# ✅ CORRECT — WebSocket reads
+header = await asyncio.wait_for(reader.readexactly(2), timeout=300)
+```
+
+---
+
+## PATTERN 18 — Middleware Chain Order Mismatch
+**المشكلة:** لما تبدل framework (FastAPI → custom)، ترتيب الـ middleware يتغير → CORS يتأخر عن auth أو rate limit → سلوك مختلف
+**مثال حقيقي:** Phase 2 — SecurityMiddleware لازم يكون قبل CORS في custom chain عكس Starlette
+**القاعدة:** بعد أي framework replacement، اختبر ترتيب middleware بنفس الـ request sequence
+```python
+# ترتيب الصحيح في custom server (عكس Starlette):
+# 1. SecurityMiddleware (rate limit + IP check)
+# 2. CORSMiddleware (origin validation)
+# 3. Route handler
+```
+
+---
+
+## PATTERN 19 — Custom Server Handler Parameters Not Auto-Injected
+**المشكلة:** لما تبدل من FastAPI لـ custom server، الفرق في parameter injection بيفضل غير ملاحظ — FastAPI بيبث query/body في function parameters، لكن custom server بيمرر `Request` فقط
+**مثال حقيقي:** Audit-C2 — `security_approve(request, ip='', action='')` الـ `ip` و `action` دايماً القيم الافتراضية
+**القاعدة:** في custom server، كل handler لازم يقرأ parameters من `request.json()` أو `request.query_param()` بنفسه
+```python
+# ❌ WRONG — FastAPI-style params in custom server
+async def handler(request: Request, ip: str = '', action: str = 'allow'):
+    # ip is always '', action is always 'allow'!
+
+# ✅ CORRECT — read from request body
+async def handler(request: Request):
+    d = await request.json()
+    ip = d.get('ip', '')
+    action = d.get('action', 'allow')
+```
+
+---
+
+## PATTERN 20 — WebSocket Field Name Collision
+**المشكلة:** لما حقل بيتستخدم لأغراضين مختلفين (routing + data) في نفس الرسالة، بيحصل silent misfire
+**مثال حقيقي:** Audit-C3 — click `type` field بيعمل double-duty (event routing + click button type)
+**القاعدة:** أي حقل بيتستخدم في routing (`_ev` أو `type`) لازم يكون اسمه مختلف عن حقول البيانات
+```javascript
+// ❌ WRONG — 'type' used for both routing and button
+socket.emit('click', {type: 'left'});  // 'type' consumed by routing
+
+// ✅ CORRECT — separate fields
+socket.emit('click', {button: 'left'});
+```
+
+---
+
+## PATTERN 21 — WebSocket Unmasked Client Frames Not Rejected
+**المشكلة:** RFC 6455 §5.3 بيقول السيرفر لازم يرفض unmasked frames من الكلاينت — لو اتبنت بدون الفحص ده، cache poisoning و injection ممكن يحصل
+**مثال حقيقي:** Audit-WS6 — portdesk_http.py كان بيقبل unmasked frames
+**القاعدة:** في أي WebSocket server، افحص `masked` flag ورفض أي unmasked client→server frame
+```python
+# ✅ CORRECT — reject unmasked client frames
+masked = bool(header[1] & 0x80)
+if not masked:
+    await self.close(1002)
+    raise WebSocketDisconnect(1002)
+```
+
+---
+
+## PATTERN 22 — WebSocket Fragmentation Not Reassembled
+**المشكلة:** RFC 6455 §5.4 بيسمح بـ fragmented messages (FIN=0 على frames غير الأخيرة، opcode 0x0 للـ continuations) — لو الـ server بيرجع أول frame بس، الباقي بيضيع
+**مثال حقيقي:** Audit-WS8 — `_recv_frame()` بيرجع أول data frame ويتجاهل continuation frames
+**القاعدة:** أي WebSocket receive لازم يعيد تجميع fragments حتى FIN=1
+```python
+# ✅ CORRECT — reassemble fragments
+async def _recv_message(self):
+    opcode = None
+    fragments = []
+    while True:
+        # ... read frame ...
+        if opcode is None:
+            opcode = frame_opcode  # first frame sets opcode
+        elif frame_opcode != 0x0:
+            raise WebSocketDisconnect(1002)  # protocol error
+        fragments.append(payload)
+        if fin:
+            return opcode, b''.join(fragments)
+```
+
+---
+
+## PATTERN 23 — HTTP/1.0 Keep-Alive Default Mismatch
+**المشكلة:** HTTP/1.0 default هو `Connection: close` — لو السيرفر بيعامل 1.0 زي 1.1، الـ connection بتفضل مفتوحة وبيحصل hang
+**مثال حقيقي:** Audit-WS5 — custom server كان بيفضل يقرأ requests على HTTP/1.0 connection بدون `keep-alive`
+**القاعدة:** لو `version == 'HTTP/1.0'` و `connection != 'keep-alive'` → اقفل الـ connection
+```python
+# ✅ CORRECT
+connection = request.headers.get('connection', '').lower()
+if connection == 'close':
+    break
+if request.http_version == 'HTTP/1.0' and connection != 'keep-alive':
+    break
+```
+
+---
+
+## PATTERN 24 — Duplicate Content-Length (Request Smuggling)
+**المشكلة:** لو client بيبعت `Content-Length: 0` و `Content-Length: 100`، الـ dict بيأخذ الأخير بس → request smuggling
+**مثال حقيقي:** Audit-WS12 — custom HTTP parser مكانش بيفحص duplicate Content-Length
+**القاعدة:** لو في أكتر من Content-Length header بقيم مختلفة، ارفض الـ request
+```python
+# ✅ CORRECT
+if key_lower == 'content-length':
+    if seen_content_length is not None and seen_content_length != val:
+        raise _BadRequest("conflicting Content-Length")
+    seen_content_length = val
+```
+
+---
+
+## PATTERN 25 — `local_ok` Flag Ignored on Server
+**المشكلة:** الكلاينت يبعت `local_ok: false` لما الـ local PIN check يفشل، لكن السيرفر بيتجاهل الحقل ده وبيوافق لو في WS نشط
+**مثال حقيقي:** Audit-Conflict1 — `/auth/pin_check` كان بيوافق رغم فشل local PIN
+**القاعدة:** أي flag من الكلاينت بيدل على فشل local auth لازم يتحترم من السيرفر
+```python
+# ✅ CORRECT
+local_ok = d.get('local_ok', True)
+if not local_ok:
+    return JSONResponse({'error': 'local PIN check failed'}, status_code=403)
+```
+
+---
+
+## PATTERN 26 — `asyncio.get_event_loop()` in Async Context
+**المشكلة:** `get_event_loop()` deprecated في Python 3.10+ وبيعمل DeprecationWarning في 3.12+، ممكن يرجع event loop غلط
+**مثال حقيقي:** A1 — 4 async handlers في portdesk-server.py
+**القاعدة:** جوّا أي `async def`، استخدم `asyncio.get_running_loop()` دايماً
+```python
+# ❌ WRONG
+async def handler():
+    await asyncio.get_event_loop().run_in_executor(...)
+
+# ✅ CORRECT
+async def handler():
+    await asyncio.get_running_loop().run_in_executor(...)
+```
+
+---
+
+## PATTERN 27 — Inconsistent PIN Check Across HTTP Endpoints
+**المشكلة:** بعض الـ HTTP endpoints الحساسة عندها PIN check والباقي لأ، بيخلق security bypass
+**مثال حقيقي:** S1 — `/screen/start` بدون PIN check بينما `/audio/start` عنده، فالكلاينت يقدر يشتغل stream بدون PIN
+**القاعدة:** أي endpoint يتحكم في sensitive features (screen, audio, input) لازم يفحص `_ws_pin_verified` بنفس الطريقة
+```python
+# ✅ CORRECT — apply consistently to ALL sensitive endpoints
+with _ws_pin_lock:
+    if not _ws_pin_verified.get(ip, False):
+        return JSONResponse({'error': 'pin required'}, status_code=403)
+```
+
+---
+
+## PATTERN 28 — Shared State Modified Without Lock in One Place
+**المشكلة:** متغير بيتقرأ/يتكتب بـ lock في مكان، لكن بيتعدل بدون lock في مكان تاني → race condition
+**مثال حقيقي:** S2 — `_pin_fails[ip] = 0` بيتعمل بدون `_sec_lock` في `_approve_ip`، بينما `auth_pin_check` بيستخدم `_sec_lock` لقراءة وكتابة نفس المتغير
+**القاعدة:** كل write لمتغير محمي بـ lock لازم يكون داخل نفس الـ lock في كل الأماكن
+```python
+# ❌ WRONG — inconsistent locking
+with _sec_lock:
+    security["whitelist"].append(ip)
+    _save_security()
+_pin_fails[ip] = 0  # outside lock!
+
+# ✅ CORRECT — all writes inside same lock
+with _sec_lock:
+    security["whitelist"].append(ip)
+    _pin_fails[ip] = 0
+    _save_security()
+```
+
+---
+
+## PATTERN 29 — WebRTC Track Resource Leak on Session End
+**المشكلة:** capture backends أو resources بتتعمل في WebRTC track لكن مش بتتقفل لما الـ PC يتقفل
+**مثال حقيقي:** SC1 — `ScreenCaptureTrack._cap` (dxcam/mss instance) مش بيتقفل عند نهاية WebRTC session
+**القاعدة:** أي class وراثة من `MediaStreamTrack` لازم تـ override `stop()` وتنظف كل resources
+```python
+# ✅ CORRECT
+def stop(self):
+    super().stop()
+    if self._cap:
+        try: self._cap.close()
+        except: pass
+        self._cap = None
+```
+
+---
+
+## PATTERN 30 — Original Dimensions Overwritten After Transform
+**المشكلة:** تطبيق scale/resize على frame وتحديث `src_w, src_h` بعده → الـ original dimensions اللي بيتستخدموا لحسابات إحداثيات (زي cursor position) بتبقى غلط
+**مثال حقيقي:** SC2 — WebRTC `_capture()` بيـ overwrite `src_h, src_w` بعد FLAG_SCALE، فـ `_draw_cursor` بيستخدم scaled dims بدل original screen dims → cursor في مكان غلط
+**القاعدة:** لو محتاج original dimensions بعد transform، احفظهم في متغيرات مستقلة قبل الـ resize
+```python
+# ❌ WRONG — overwrites original dims
+src_h, src_w = arr.shape[:2]
+if FLAG_SCALE != 1.0:
+    arr = cv2.resize(arr, ...)
+    src_h, src_w = arr.shape[:2]  # now scaled!
+_draw_cursor(arr, ..., src_w, src_h)  # wrong!
+
+# ✅ CORRECT — preserve original
+src_h, src_w = arr.shape[:2]
+orig_h, orig_w = src_h, src_w
+if FLAG_SCALE != 1.0:
+    arr = cv2.resize(arr, ...)
+    src_h, src_w = arr.shape[:2]
+_draw_cursor(arr, ..., orig_w, orig_h)  # correct!
+```
+
+---
+
+## PATTERN 31 — Runtime Flags Bypassed by Background Worker Threads
+**المشكلة:** flags بيتوقع منها تغيير السلوك runtime (زي `FLAG_WATCH_ONLY`) بتتفحص في HTTP handlers لكن background threads (scheduler، daemon workers) بيتجاهلوها
+**مثال حقيقي:** DC1 — `_scheduler_worker` بيشغّل macros بدون فحص `FLAG_WATCH_ONLY`، `FLAG_NO_KEYBOARD`، `FLAG_NO_MOUSE`، مع إن HTTP `/macros/run` بيفحصهم
+**القاعدة:** أي background worker بينفذ actions بيتحكم فيهم runtime flags لازم يفحص الـ flags في أول الـ execution
+```python
+# ✅ CORRECT
+def _run(s=steps):
+    if FLAG_WATCH_ONLY: return
+    for step in s:
+        if step['type'] in ('key', 'shortcut') and FLAG_NO_KEYBOARD: continue
+        if step['type'] in ('click', 'scroll') and FLAG_NO_MOUSE: continue
+        ...
+```
+
+---
+
+## PATTERN 32 — Dead Async Computation in Nested `.then()` Chains
+**المشكلة:** في nested Promise chains، الـ outer `.then()` result بيتحسب لكن النتيجة مش بتتستخدم — الـ inner chain بتوصل للـ original value عبر closure بدل ما تستخدم الـ result المحسوب
+**مثال حقيقي:** P4 — `reportPinResult` في client: `_sha256(pin).then(function(hashedPin){...})` بتحسب `hashedPin` لكن الـ inner chain بتعمل `_sha256(salt+pin)` وتبعت `saltedHash` — `hashedPin` مش بتتستخدم خالص
+**القاعدة:** في nested Promise chains، افحص إن كل `.then()` result بيتستخدم فعلاً. لو الـ inner code بتوصل للـ original value عبر closure بدل النتيجة المحسوبة، الـ outer computation هو dead code
+```javascript
+// ❌ WRONG — hashedPin computed but never used
+_sha256(pin).then(function(hashedPin) {   // dead result
+    _sha256(salt + pin).then(function(saltedHash) {
+        send(saltedHash);  // uses closure var 'pin', not 'hashedPin'
+    });
+});
+
+// ✅ CORRECT — remove dead outer computation
+var saltedInput = salt ? salt + pin : pin;
+_sha256(saltedInput).then(function(saltedHash) {
+    send(saltedHash);
+});
+```
+
+---
+
+## CHECKLIST — قبل أي commit
+
+- [ ] هل في duplicate method definitions؟ `grep -c "def method_name"`
+- [ ] هل كل `global var` في Python functions متعلنة بـ `global`?
+- [ ] هل في innerHTML جديد؟ هل بيمر على `_safeHTML()`؟
+- [ ] هل في async function بتستدعي blocking I/O (`time.sleep`, `os.stat`, `Thread.join`)؟
+- [ ] هل في optional import بيتستخدم بدون `_AVAILABLE` check؟
+- [ ] هل في ZIP generator بيعمل truncate أو close+reopen وسط الكتابة؟
+- [ ] هل في session state بيتعمل set قبل auth؟
+- [ ] هل كل JS global variable متعلنة بـ `var`؟
+- [ ] هل الـ `_ts` بيتضاف وقت الـ send مش وقت الـ queue؟
+- [ ] هل كل hash comparison بـ `hmac.compare_digest` (constant-time)؟
+- [ ] هل كل parser مخصص فاصله size limits (headers, body, WS frame)؟
+- [ ] هل كل connection عنده timeout صريح (HTTP + WebSocket idle)؟
+- [ ] هل ترتيب middleware صحيح بعد أي framework c PortDesk — Anti-Pattern Reference
+# كل pattern هنا سبّب bug حقيقي أو ثغرة فعلية. تحقق منها قبل أي تعديل.
+hange؟
+- [ ] هل كل handler في custom server بيفضل يقرأ params من `request.json()` مش من function args؟
+- [ ] هل في field name collision بين routing fields و data fields في WS messages؟
+- [ ] هل WebSocket server بيرفض unmasked client frames؟
+- [ ] هل WebSocket server بيعيد تجميع fragmented messages؟
+- [ ] هل HTTP/1.0 connections بتقفل بشكل صحيح (default close)؟
+- [ ] هل في duplicate Content-Length headers بيتفحصوا؟
+- [ ] هل `local_ok` flag من الكلاينت بيتحترم في الـ server؟
+- [ ] هل في async function بتستخدم `get_event_loop()` بدل `get_running_loop()`؟ (Pattern 26)
+- [ ] هل كل HTTP endpoints الحساسة (screen, audio, input) عندها PIN check بشكل متسق؟ (Pattern 27)
+- [ ] هل في متغير محمي بـ lock بيتعدل في مكان تاني بدون نفس الـ lock؟ (Pattern 28)
+- [ ] هل كل WebRTC Track classes عندها `stop()` method تنظف resources؟ (Pattern 29)
+- [ ] هل في `src_w/src_h` أو dimensions بتتـ overwrite بعد resize وبتتستخدم في coordinate mapping؟ (Pattern 30)
+- [ ] هل background worker threads بتفحص runtime flags (FLAG_WATCH_ONLY, FLAG_NO_KEYBOARD, etc.)؟ (Pattern 31)
+- [ ] هل في nested Promise `.then()` chain بتحسب value في الـ outer ومش بتستخدمها؟ (Pattern 32)
+
+---
+
+## PATTERN 33 — Non-Reentrant Lock Re-acquired (Self-Deadlock)
+**المشكلة:** كود بياخد `threading.Lock` ثم ينادي method تانية بتاخد **نفس** الـ lock → تجمّد أبدي. خطير بشكل خاص لما الـ lock يكون alias لـ lock داخلي
+**مثال حقيقي:** هذه الجلسة — `_ws_pin_lock` كان alias لـ `_session._lock`؛ `with _ws_pin_lock:` ثم `_session.set_verified()` (اللي بتاخد `self._lock`) → السيرفر بيتجمد عند كل WebSocket connect
+**القاعدة:** أي method بتُنادى داخل `with lock:` ممنوع تاخد نفس الـ lock. استخدم `RLock` أو عدّل المتغير مباشرة بدل استدعاء method تقفل
+```python
+# ❌ WRONG — _ws_pin_lock IS _session._lock
+with _ws_pin_lock:
+    _session.set_verified(ip, True)   # tries to take self._lock again → deadlock
+
+# ✅ CORRECT — mutate the shared dict directly under the lock
+with _ws_pin_lock:
+    _ws_pin_verified[ip] = True
+```
+
+---
+
+## PATTERN 34 — External CDN Resource on a LAN/Offline Tool
+**المشكلة:** `<script src="https://cdn...">` في أداة بتشتغل على شبكة محلية بدون إنترنت → المتصفح بيعلّق على تحميل المورد → **الصفحة كلها ما تفتحش**
+**مثال حقيقي:** هذه الجلسة — DOMPurify من `cdnjs.cloudflare.com`؛ الموبايل على LAN بدون نت → صفحة الكلاينت تعلّق أيام
+**القاعدة:** أي أداة LAN/offline لازم تبندل كل أصولها محلياً (JS/CSS/fonts). ممنوع الاعتماد على CDN خارجي في مسار التحميل الحرج
+```html
+<!-- ❌ WRONG — hangs with no internet -->
+<script src="https://cdnjs.cloudflare.com/.../purify.min.js"></script>
+<!-- ✅ CORRECT — bundle locally next to the project -->
+<script src="purify.min.js"></script>
+```
+
+---
+
+## PATTERN 35 — Blocking File I/O Logger Called From Async Handlers
+**المشكلة:** دالة logging بتعمل `open()+write()` متزامن وبتتنادى من `async def` handlers → بتبلوك الـ event loop مع كل log (كل connect / key press)
+**مثال حقيقي:** هذه الجلسة — `_log_event` كانت تفتح وتكتب الملف synchronously داخل index()/websocket/auth handlers
+**القاعدة:** الـ logging من async context لازم يكون عبر طابور + خيط كاتب واحد (single-writer)؛ الـ hash-chain فقط يتم under-lock بسرعة
+```python
+# ✅ CORRECT — fast in-memory chain under lock, file write offloaded
+_log_write_queue = queue.Queue(maxsize=10000)
+def _log_writer_thread():
+    while True:
+        line = _log_write_queue.get()
+        with open(LOG_FILE,'a',encoding='utf-8') as f: f.write(line+'\n')
+def _log_event(...):
+    with _log_lock: line = _build_chained_entry(...)   # fast
+    try: _log_write_queue.put_nowait(line)             # never blocks loop
+    except queue.Full: pass
+```
+
+---
+
+## PATTERN 36 — Silent Exception Handler Hides All Errors
+**المشكلة:** الـ global exception handler (أو dispatch wrapper) بيبتلع الأخطاء ويبعتها لـ `_vprint` اللي مايطبعش إلا مع `--verbose` → debug مستحيل، والاتصال يقع صامتاً
+**مثال حقيقي:** هذه الجلسة — `_global_exception_handler` + `_dispatch` بدون try/except → WS بيتقفل صامت ("connection lost" بدون سبب)
+**القاعدة:** الأخطاء غير المتوقعة لازم تُطبع دايماً (`print`/`logging.error`)؛ والـ event dispatch لازم يكون ملفوف في try/except عشان رسالة واحدة سيئة ما تقتلش الاتصال كله
+```python
+# ✅ CORRECT
+try:
+    await _dispatch(data, ws)
+except WebSocketDisconnect: raise
+except Exception as e:
+    print(f"dispatch error on '{ev}': {e!r}", flush=True)   # always visible
+    try: await ws.send_json({'type':'error','msg':'dispatch_error'})
+    except Exception: pass
+```
+
+---
+
+## PATTERN 37 — Client/Server Clock Skew Breaks Replay Window (Silent Drop)
+**المشكلة:** حماية الـ replay بترفض أي رسالة فرق توقيتها أكبر من نافذة صغيرة (مثلاً 2s). ساعة الموبايل/الكلاينت غالباً منحرفة ثوانٍ → **كل** أحداث الإدخال تُرفض **بصمت** → "كل حاجة معطلة" رغم أن الاتصال شغّال
+**مثال حقيقي:** هذه الجلسة — `if abs(time.time() - _ts/1000) > 2: return` كان يرمي كل أحداث الماوس/الكيبورد على موبايل بساعة منحرفة
+**القاعدة:** زامن ساعة الكلاينت مع السيرفر (السيرفر يبعت `server_ts` عند المصادقة، الكلاينت يحسب offset ويصحّح كل `_ts`)، ووسّع النافذة لقيمة معقولة (~10s)، واطبع سبب الإسقاط في verbose بدل الصمت
+```python
+# server: send time at auth
+await ws.send_json({'type':'hmac_ok','server_ts':int(time.time()*1000)})
+# client: offset = server_ts - Date.now();  stamp _ts = Date.now()+offset
+```
+
+---
+
+## PATTERN 38 — Capture Backend Probed With a Single Grab (dxcam Warm-up None)
+**المشكلة:** فحص الـ backend بـ grab واحدة. لكن dxcam (وبعض duplication APIs) بترجّع `None` في أول عدة grabs بعد `start()` لأن thread الالتقاط لسه ما طلّعش فريم → الكود يحكم بالفشل ويقع على backend أبطأ (BitBlt)
+**مثال حقيقي:** هذه الجلسة — `_create_capture_backend` كان يجرّب grab واحدة؛ dxcam يرجّع None → fallback لـ BitBlt (7fps) بدل dxcam (30fps+)
+**القاعدة:** عند فحص backend معروف بالـ warm-up (dxcam)، أعد المحاولة عدة مرات (~0.6s) قبل الحكم بالفشل
+```python
+arr=None; retries = 20 if bname=='dxcam' else 1
+for _ in range(retries):
+    arr,_ = cap.grab(mon_idx)
+    if arr is not None and arr.size>0: break
+    if retries>1: time.sleep(0.03)
+```
+
+---
+
+## PATTERN 39 — COM/Native Object Double-Free or Wrong Release (`del` vs API)
+**المشكلة:** تحرير كائن COM/native بـ `del obj` أو باستدعاء طريقتين تحرير معاً → `access violation writing 0x0` في comtypes، وتلف الـ singleton لباقي الجلسة
+**مثال حقيقي:** هذه الجلسة — `_DXCamCaptureBackend.close()` استخدم `del self._cam`، ثم محاولة إصلاح استدعت `camera.release()` **و** `dxcam.clean_up()` معاً (double-free)
+**القاعدة:** حرّر الكائنات native عبر مسار واحد رسمي من المكتبة (مثلاً `dxcam.clean_up()` فقط)، بعد `stop()`، وممنوع `del` أو الجمع بين مساري تحرير
+```python
+def close(self):
+    cam=self._cam; self._cam=None
+    if cam is not None:
+        try: cam.stop()
+        except Exception: pass
+    try: _dxcam.clean_up()      # single official release path
+    except Exception: pass
+```
+
+---
+
+## PATTERN 40 — Per-Frame / Per-Event Diagnostic Print (CPU Drain + Flood)
+**المشكلة:** سطر debug في مسار ساخن (كل فريم أو كل حركة ماوس) → يفيض التيرمنل ويستهلك CPU (stdout writes + إعادة رسم الحالة)
+**مثال حقيقي:** هذه الجلسة — `_vprint("→ event 'move' received")` في `_dispatch` فاض مع كل حركة ماوس وزوّد الـ CPU
+**القاعدة:** ممنوع أي طباعة per-frame/per-event في الإنتاج. لو محتاجها للتشخيص، اجعلها throttled (مرة/ث) أو خلف flag منفصل وامسحها بعد التشخيص
+```python
+# ❌ WRONG — runs on every mouse move
+_vprint(f"→ event '{t}' received from {ip}", flush=True)
+# ✅ CORRECT — remove it, or throttle to once/sec behind a debug flag
+```
+
+---
+
+## PATTERN 41 — Fixed Quality + Unbounded Rate = Jitter on Weak Hardware
+**المشكلة:** السيرفر يثبّت الجودة (اختيار اليوزر) ويترك معدل الالتقاط/الإرسال يجري بأقصى سرعة. على معالج ضعيف، زمن ترميز الفريم متغيّر وقريب من الـ budget → الـ fps والـ CPU يتأرجحان بعنف (11↔30)
+**مثال حقيقي:** هذه الجلسة — معالج 2016 (A12) أعطى عداد متذبذب واستهلاك CPU 30-44% غير ثابت
+**القاعدة:** طبّق **adaptive frame pacing**: قِس زمن الترميز الفعلي (EMA)، احسب الـ fps المستدام (مع headroom)، وقيّد معدل الالتقاط له (السقف = اختيار اليوزر). هذا يثبّت النعومة دون لمس الجودة — نفس مبدأ TeamViewer/DeskRT
+```python
+# emit task measures encode time; capture loop paces to sustainable fps
+if enc_ema>0: sustainable = 0.85/enc_ema
+eff_fps += max(-2, min(2, min(user_fps, sustainable) - eff_fps)) * 0.5
+frame_budget = 1.0 / max(1.0, min(user_fps, eff_fps))
+```
+
+---
+
+## PATTERN 42 — Subprocess Capture Backend Ordered Before In-Process Ones
+**المشكلة:** ترتيب fallback يضع backend بيفتح subprocess دائم (ffmpeg) أو per-frame (scrot) **قبل** backends داخل العملية (mss/xlib) → استهلاك أعلى وخطر تعليق صامت لو الـ subprocess علّق
+**مثال حقيقي:** هذه الجلسة — Linux X11 chain كان `ffmpeg_x11 → xlib → mss`؛ الأصح `mss → xlib → ffmpeg_x11 → scrot`
+**القاعدة:** رتّب backends الالتقاط: in-process السريع/المستقر أولاً، ثم subprocess كاحتياطي. تأكد أن كل فرع (Wayland/X11) عنده fallback نهائي (mss)
+```python
+# ✅ X11 order
+chain.append((_MSSCaptureBackend, 'mss'))          # in-process, stable
+chain.append((_XlibCaptureBackend, 'python-xlib')) # in-process
+chain.append((_FFmpegX11CaptureBackend,'ffmpeg_x11')) # persistent subprocess (fallback)
+chain.append((_ScrotCaptureBackend,'scrot'))       # per-frame subprocess (last)
+```
+
+---
+
+## PATTERN 43 — Scary Raw Metric Shown to User During Normal Idle
+**المشكلة:** عرض رقم خام (fps لحظي) لليوزر. وقت سكون الشاشة الطبيعي ينزل لـ 1-2 fps → اليوزر يفتكر فيه عطل/مشكلة شبكة ويرفع issue أو يترك الأداة
+**مثال حقيقي:** هذه الجلسة — العداد كان يعرض 1-2 fps وقت سكون الشاشة (وهو سلوك صحي تماماً)
+**القاعدة:** افصل "الحالة المعروضة" عن "المعدل الخام". السيرفر يبعت `state` صادقة (`active`/`idle`/`slow`)؛ الكلاينت يعرض مؤشّر (مثلاً `● Live` وقت السكون) بدل رقم مخيف، وينعّم الرقم بصرياً (EMA) وقت النشاط
+```javascript
+if(state==='idle') el.textContent='● Live';        // honest + reassuring
+else { ema = ema?Math.round(ema*0.6+fps*0.4):fps; el.textContent=ema+' fps'; }
+```
+
+---
+
+## CHECKLIST — إضافات هذه الجلسة (Patterns 33-43)
+
+- [ ] هل في `threading.Lock` بيتعاد أخذه داخل method بتُنادى تحته؟ استخدم RLock أو mutate مباشرة (Pattern 33)
+- [ ] هل في `<script src="https://...">` أو أي CDN في مسار تحميل أداة LAN/offline؟ بندله محلياً (Pattern 34)
+- [ ] هل الـ logger بيعمل file I/O متزامن من async handlers؟ حوّله لطابور + single-writer (Pattern 35)
+- [ ] هل الأخطاء بتُطبع دايماً (مش بس مع --verbose)؟ وهل _dispatch ملفوف try/except؟ (Pattern 36)
+- [ ] هل الكلاينت بيزامن ساعته مع server_ts، والـ replay window معقولة (~10s)؟ (Pattern 37)
+- [ ] هل فحص الـ capture backend بيعيد المحاولة لـ dxcam (warm-up None)؟ (Pattern 38)
+- [ ] هل تحرير كائنات COM/native عبر مسار واحد رسمي (مش `del` ولا double-free)؟ (Pattern 39)
+- [ ] هل في أي print/_vprint في مسار per-frame أو per-event؟ احذفه أو throttle (Pattern 40)
+- [ ] هل البث بيطبّق adaptive frame pacing بدل fixed-quality + unbounded-rate؟ (Pattern 41)
+- [ ] هل ترتيب الـ capture fallbacks: in-process أولاً ثم subprocess، وكل فرع عنده mss fallback؟ (Pattern 42)
+- [ ] هل العداد بيعرض حالة صادقة (● Live وقت السكون) بدل رقم خام مخيف؟ (Pattern 43)
+
+---
+
+## PATTERN 44 — Native Key Table Missing Media/Extended Keys (Silent No-Op)
+**المشكلة:** جدول الـ VK/keysym المخصص مايحتويش media keys (playpause/volume) → `_vk_for_key` يرجّع 0 → الضغط مايحصلش بصمت. والـ extended keys (arrows/nav/media) محتاجة `KEYEVENTF_EXTENDEDKEY` وإلا بتتجاهل في كتير من البرامج
+**مثال حقيقي:** هذه الجلسة — أزرار media مش شغالة، وأزرار الأسهم في تاب Present مش بتشتغل
+**القاعدة:** أي جدول مفاتيح مخصص لازم: (1) يشمل media keys، (2) media keys تُرسل بالـ VK (مفيش scancode) مش بالـ scancode، (3) extended keys تحمل `KEYEVENTF_EXTENDEDKEY`
+```python
+_WIN_EXTENDED = {0x25,0x26,0x27,0x28, 0xAD,0xAE,0xAF,0xB0,0xB1,0xB2,0xB3, ...}
+def _emit_key(vk, down=True):
+    scan = MapVirtualKey(vk,0)
+    if scan == 0: flags = up | (EXT if vk in _WIN_EXTENDED else 0)        # media → VK
+    else:         flags = SCANCODE | up | (EXT if vk in _WIN_EXTENDED else 0)
+```
+
+---
+
+## PATTERN 45 — Fixed Sleeps in Clipboard-Paste Typing (Cumulative Latency)
+**المشكلة:** `type_text` عبر clipboard+Ctrl+V مع `time.sleep` ثابتة كبيرة لكل استدعاء → عند الكتابة حرف-بحرف من موبايل، التأخير يتراكم بشكل محسوس
+**مثال حقيقي:** هذه الجلسة — `sleep(0.08)+sleep(0.05)+sleep(0.1)=0.23s` لكل نص = حروف بطيئة جداً
+**القاعدة:** قلّل الـ sleeps لأقل قيمة تشتغل (clipboard set فوري؛ paste يحتاج settle بسيط ~20ms)
+
+---
+
+## PATTERN 46 — Client Sends Raw Slider Value to a ×Multiplier Server (Scroll Too Fast)
+**المشكلة:** الكلاينت يبعت قيمة slider خام، والسيرفر يضربها في ثابت كبير (`WHEEL_DELTA=120`) → حتى أقل قيمة = سريعة جداً
+**مثال حقيقي:** هذه الجلسة — `scrollSpeed` min=1 → notch كامل كل 110ms
+**القاعدة:** افهم الـ scaling في الطرفين. اقسم القيمة في الكلاينت (`max(1, speed/3)`) وزوّد الفاصل الزمني، عشان أقل إعداد يكون فعلاً بطيء
+
+---
+
+## PATTERN 47 — `\d` Regex / ASCII-only Input Rejects Localized Digits
+**المشكلة:** التحقق من إدخال رقمي بـ `\d` أو `[0-9]` يرفض الأرقام العربية (٠-٩) والفارسية (۰-۹) → مستخدم عربي مايقدرش يعيّن PIN بأرقام لغته
+**مثال حقيقي:** هذه الجلسة — `setNewPIN` بـ `/^\d{6}$/` يرفض ١٢٣٤٥٦
+**القاعدة:** طبّع الأرقام المحلية لـ ASCII قبل التحقق/الـ hashing
+```javascript
+function _normDigits(s){return String(s).replace(/[\u0660-\u0669]/g,d=>d.charCodeAt(0)-0x0660)
+                                        .replace(/[\u06F0-\u06F9]/g,d=>d.charCodeAt(0)-0x06F0);}
+```
+
+---
+
+## PATTERN 48 — Shared Server Lockout Not Reflected When UI Switches Auth Method
+**المشكلة:** الـ lockout مخزّن server-side بمفتاح IP (مشترك بين PIN/pattern صح)، لكن الـ UI عنده flags منفصلة (`pinLocked` / `_patternLocked`) مش بتتزامن عند التبديل → المستخدم يفتكر الطريقة التانية متاحة
+**مثال حقيقي:** هذه الجلسة — التبديل من نمط مقفول لـ PIN مايظهرش العداد لحد أول محاولة فاشلة
+**القاعدة:** عند عرض أي شاشة auth، اعمل probe للـ lockout من السيرفر واقفل **الطريقتين** بنفس العداد
+```javascript
+// on showing pin/pattern screen: probe; if locked, lock BOTH with same timer
+function _probeLockout(){ fetch('/auth/pin_check',{...,body:'{"_probe":true}'})
+  .then(r=>r.json()).then(d=>{ if(d.error&&/seconds|ثانية/.test(d.error)) _applyLockoutFromError(d.error); }); }
+```
+
+---
+
+## PATTERN 49 — Full-Page Navigation to a Gated Endpoint (Error Page Trap)
+**المشكلة:** تشغيل تحميل بـ `window.location.href='/gated/endpoint'` لما الميزة مقفولة → المتصفح ينقل الصفحة كلها لرد 403 → الـ SPA "تبوظ" وريفرش يفضل على صفحة الخطأ
+**مثال حقيقي:** هذه الجلسة — تحميل ملف مع `--no-download` قلب الصفحة لـ err
+**القاعدة:** افحص حالة الميزة client-side قبل أي full-page navigation، واعرض toast بدل ما تنقل الصفحة. الأفضل استخدم fetch/blob للتحميل بدل `location.href`
+```javascript
+function expDownload(){ if(_srvNoDownload){toast('⛔ Download disabled in Settings');return;} ... }
+```
+
+---
+
+## PATTERN 50 — Animated Progress Bar Not Reset When Its Feature Is Disabled
+**المشكلة:** شريط مؤقت (CSS transition) بيفضل في حالته الأخيرة لما الميزة تتقفل → بصرياً يبان كأنه شغّال لكن مفيش حدث في النهاية → يلخبط المستخدم
+**مثال حقيقي:** هذه الجلسة — شريط auto-sleep يفضل متحرك بعد إغلاق الميزة
+**القاعدة:** أي مؤشّر بصري لازم يتصفّر صراحةً (transition:none + reset) لما الميزة تتعطّل، وفي دالة مركزية واحدة
+
+---
+
+## CHECKLIST — إضافات الجلسة (Patterns 44-50)
+
+- [ ] هل جدول المفاتيح المخصص يشمل media keys + يعالج extended keys (EXTENDEDKEY flag)؟ (Pattern 44)
+- [ ] هل sleeps الكتابة (clipboard paste) مقلّلة لأقل قيمة تشتغل؟ (Pattern 45)
+- [ ] هل قيم الـ scroll مُحجَّمة بين الكلاينت والسيرفر (أقل إعداد فعلاً بطيء)؟ (Pattern 46)
+- [ ] هل الإدخال الرقمي بيطبّع الأرقام العربية/الفارسية قبل التحقق/الـ hash؟ (Pattern 47)
+- [ ] هل الـ lockout المشترك بيظهر عند التبديل بين PIN/pattern؟ (Pattern 48)
+- [ ] هل في `window.location.href` لـ endpoint ممكن يكون مقفول؟ افحص client-side أولاً (Pattern 49)
+- [ ] هل كل مؤشّر بصري بيتصفّر لما ميزته تتعطّل؟ (Pattern 50)
+
+---
+
+## PATTERN 51 — Bulk String-Replace Breaks JS Syntax (Brace-less if/else)
+**المشكلة:** إدراج كود تلقائي (string-replace) بعد نمط متكرر زي `.add('show');` ممكن يقع جوه `if` **بدون أقواس** → الـ statement المُدرَج يفصل الـ `if` عن الـ `else` → `SyntaxError` يكسر **كل** ملف الـ JavaScript → الصفحة تحمّل بس مفيش أي JS يشتغل (مفيش اتصال/بينج/أزرار)
+**مثال حقيقي:** هذه الجلسة — إدراج `_probeLockout();` بعد `if(savedPINHash)...add('show');` خلّى `else` يتيم وعطّل الكلاينت بالكامل
+**القاعدة:** بعد أي تعديل آلي/جماعي على JS، **افحص النحو إجبارياً** بـ `node --check` على كل الـ inline scripts قبل التسليم. وممنوع الاعتماد على نمط متكرر للإدراج بدون التأكد إنه مش داخل `if/else` بدون block
+```bash
+# استخرج الـ inline scripts وافحصها
+node --check extracted_inline.js   # لازم يعدي قبل أي تسليم
+```
+
+- [ ] هل اتعمل `node --check` على JS الكلاينت بعد أي تعديل؟ (Pattern 51)
+
+---
+
+## PATTERN 52 — Shared ThreadPool Saturation Freezes Input + Streaming Together
+**المشكلة:** استخدام ThreadPool واحد لكل شيء (الإدخال + ترميز البث + الملفات + verify) → تحت الضغط (كليكات متتالية + بث ثقيل) كل الـ threads تُستهلَك وتنتظر نفس الـ lock → **الإدخال والبث يتجمّدان معاً، وحتى أزرار الكلاينت تبطّل**
+**مثال حقيقي:** هذه الجلسة — `_EXECUTOR` (cpu*2+4 = 12 thread) مشترك؛ كليكات يمين سريعة على معالج قديم جمّدت كل شيء
+**القاعدة:** افصل pool الإدخال (خفيف، يجب أن يبقى مستجيباً) عن pool العمل الثقيل (ترميز/ملفات). الإدخال على pool صغير مخصص لا يُحجَب أبداً بعمل البث
+```python
+_EXECUTOR       = ThreadPoolExecutor(max_workers=cpu*2+4)   # streaming + files
+_INPUT_EXECUTOR = ThreadPoolExecutor(max_workers=4)         # mouse/keyboard only
+# كل أحداث الإدخال → run_in_executor(_INPUT_EXECUTOR, ...)
+```
+- [ ] هل الإدخال على pool منفصل عن البث/الملفات؟ (Pattern 52)
+
+---
+
+## PATTERN 53 — Clipboard-Paste Typing Spawns a Subprocess Per Keystroke (Lag)
+**المشكلة:** `type_text` عبر clipboard+Ctrl+V بيستدعي subprocess للـ clipboard لكل حرف. على Windows `Get-Clipboard` (powershell) ~200-400ms للاستدعاء → الكتابة حرف-بحرف من موبايل بطيئة جداً
+**مثال حقيقي:** هذه الجلسة — "الحروف بتوصل متأخر أوي"
+**القاعدة:** للنص ASCII القصير، استخدم keystrokes مباشرة (`pyautogui.write`) بدل clipboard. احتفظ بمسار clipboard لليونيكود/العربي فقط، واحفظ الـ clipboard القديم مرة واحدة لا لكل حرف
+```python
+def type_text(text):
+    if _is_simple_typable(text):       # short ASCII
+        pyautogui.write(text, interval=0); return    # fast path
+    # else: clipboard+paste for unicode (Arabic/emoji)
+```
+- [ ] هل الكتابة لها fast-path مباشر للـ ASCII بدل clipboard لكل حرف؟ (Pattern 53)
+
+---
+
+## PATTERN 54 — Numeric Config Field Without Bounds (Resize-to-Zero Crash)
+**المشكلة:** حقل عددي من الكلاينت (مثل `height`) بيتاخد بـ `int()` بدون `max/min`. قيمة 0 → `cv2.resize` لأبعاد صفرية = exception كل فريم؛ قيمة ضخمة → استنزاف ذاكرة
+**مثال حقيقي:** هذه الجلسة — `stream_config['height']=int(data['height'])` بدون حدود (بينما quality/fps محدودين)
+**القاعدة:** كل حقل عددي من الكلاينت لازم يتحدّد بـ `max(lo, min(hi, int(v)))` — راجع **كل** الحقول مش بعضها
+```python
+stream_config['height'] = max(120, min(2160, int(data['height'])))
+```
+- [ ] هل كل حقل عددي من الكلاينت محدود بـ max/min؟ (Pattern 54)
+
+---
+
+## PATTERN 55 — TypedArray على ArrayBuffer بـ offset غير محاذٍ (RangeError)
+**المشكلة:** `new Int16Array(buf, 1)` يفشل بـ RangeError لأن offset=1 مش محاذي لـ 2 bytes. شائع عند تخطّي opcode بايت واحد في binary frame
+**مثال حقيقي:** هذه الجلسة — فك صوت binary `0x04 + PCM16`؛ `Int16Array(buf,1)` كان هيرمي RangeError
+**القاعدة:** انسخ الـ payload لـ buffer جديد قبل عمل TypedArray عليه: `buf.slice(1)` ثم `new Int16Array(sliced)`
+```javascript
+var payload=buf.slice(1);                         // aligned copy
+var pcm=new Int16Array(payload,0,payload.byteLength>>1);
+```
+
+---
+
+## PATTERN 56 — Binary Protocol: جدولا المفاتيح/الـ opcodes لازم يتطابقا تماماً بين الطرفين
+**المشكلة:** بروتوكول binary مخصّص (لتوفير bandwidth) يعتمد على جدول مشترك (key index ↔ name، opcodes). أي اختلاف ترتيب بين client و server = ضغط مفتاح خاطئ
+**مثال حقيقي:** هذه الجلسة — `_BIN_KEYS` (67 مفتاح) لازم يكون **بنفس الترتيب** في السيرفر والكلاينت
+**القاعدة:** ولّد الجدول من مصدر واحد أو افحص التطابق آلياً (count + order). وثّق الـ layout بالبايتات بجانب كلا التعريفين
+```python
+# server _BIN_KEYS  ==  client _BIN_KEYS  (نفس الترتيب بالظبط)
+# layout: 0x10 MOVE=<Bhh>, 0x11 CLICK=<BB>, 0x12 SCROLL=<BhB>, 0x13/14 KEY=<BH>, 0x15 SEL=<Bhh>
+```
+
+---
+
+## PATTERN 57 — Binary Frame بدون _ts يكسر فحص الـ replay
+**المشكلة:** لما تبني binary input protocol، الإطارات مفيهاش `_ts` (لتوفير الحجم)، فحماية الـ replay اللي بتفحص `_ts` بترفضها
+**مثال حقيقي:** هذه الجلسة — binary frames بتُختم بـ `_ts` على السيرفر وقت الاستلام
+**القاعدة:** اختم الـ binary frame بـ `_ts` server-side وقت الاستلام (الإطار وصل = حديث بطبيعته)، أو ضمّن timestamp مضغوط في الإطار
+```python
+data = _decode_binary_input(msg)
+if data is not None:
+    data['_ts'] = time.time() * 1000.0   # stamp on arrival
+```
+
+- [ ] هل TypedArray على binary frame بياخد نسخة محاذية؟ (Pattern 55)
+- [ ] هل جداول الـ binary protocol متطابقة client↔server؟ (Pattern 56)
+- [ ] هل binary frames بتتختم بـ _ts للـ replay check؟ (Pattern 57)
+
+---
+
+## PATTERN 58 — Layered Input Backends With Graceful Fallback (Cross-Platform Parity)
+**المشكلة:** الاعتماد على subprocess واحد لكل منصة (xdotool/osascript) = بطيء (process fork لكل حدث) وغير متكافئ: Windows عنده SendInput (kernel) بينما Linux/macOS عالقين على subprocess
+**مثال حقيقي:** هذه الجلسة — توحيد التجربة عبر الأنظمة الثلاثة
+**القاعدة:** رتّب backends الإدخال من الأسرع للأبطأ مع probe آمن وقت الإقلاع و fallback شفّاف لكل دالة:
+- Windows: SendInput (موجود)
+- Linux X11: python-xlib XTest (~0.1ms) → evdev/uinput (kernel) → xdotool (fallback)
+- Linux Wayland: evdev/uinput (يعمل بدون X11) → xdotool/XWayland
+- macOS: Quartz CGEvent (kernel) → cliclick → osascript
+```python
+_have_xtest = (not _wayland) and _init_xtest()   # probe once
+_have_uinput = _init_uinput() if (_wayland or not _have_xtest) else False
+def moveRel(dx,dy):
+    if _have_xtest:
+        try: _xtest_move(dx,dy); return
+        except Exception: pass
+    if _have_uinput:
+        try: _uinput_move(dx,dy); return
+        except Exception: pass
+    _xdotool(...)   # universal fallback
+```
+- [ ] هل كل منصة عندها backend سريع (kernel/direct) مع fallback شفّاف؟ (Pattern 58)
+
+---
+
+## PATTERN 59 — Probe Optional Backend Once at Import, Not Per-Call
+**المشكلة:** محاولة import/init لمكتبة اختيارية (Xlib/evdev/Quartz) داخل كل استدعاء = بطء + استثناءات متكررة
+**القاعدة:** اعمل probe مرة واحدة وقت الإقلاع، خزّن النتيجة في `_have_X` flag، واستخدمها. الـ probe نفسه ملفوف try/except فلا يكسر الـ import لو المكتبة غائبة
+```python
+def _init_quartz():
+    global _QZ
+    try: import Quartz as _Q; _QZ=_Q; return True
+    except Exception: _QZ=None; return False
+_have_quartz = _init_quartz()   # once
+```
+- [ ] هل المكتبات الاختيارية تُفحص مرة واحدة بـ flag؟ (Pattern 59)
+
+---
+
+## PATTERN 60 — JSON State File Written Non-Atomically (Corruption on Crash)
+**المشكلة:** `open(path,'w'); json.dump(...)` مباشرة — لو البرنامج وقع/انقطعت الكهربا أثناء الكتابة → ملف JSON ناقص/تالف → فقدان الـ macros/scheduled
+**مثال حقيقي:** هذه الجلسة — `_save_macros`/`_save_scheduled` كانوا non-atomic بينما `_save_security` atomic
+**القاعدة:** كل كتابة JSON للحالة لازم تكون atomic: اكتب لـ tmp ثم `os.replace` (atomic على نفس الـ filesystem)
+```python
+tmp = FILE + '.tmp'
+with open(tmp,'w') as f: json.dump(data,f)
+os.replace(tmp, FILE)   # atomic
+```
+- [ ] هل كل كتابة JSON للحالة atomic (tmp + os.replace)؟ (Pattern 60)
+
+---
+
+## PATTERN 61 — Tamper-Evident Log Verified Only on Write, Never on Read
+**المشكلة:** سلسلة hash تُحسب عند الكتابة (tamper-evident على الورق)، لكن قراءة السجل بترجّعه بدون التحقق من السلسلة → التلاعب مايتكشفش فعلياً
+**مثال حقيقي:** هذه الجلسة — `/log/list` كان يرجّع الأحداث بدون verify
+**القاعدة:** تحقّق من السلسلة عند القراءة وأرجِع `chain_valid`؛ اعرض تحذير في الـ UI لو فشل
+```python
+# recompute each entry hash + check prev-links → chain_valid
+```
+- [ ] هل سلسلة الـ log بتتحقّق عند القراءة مش بس الكتابة؟ (Pattern 61)
+
+---
+
+## PATTERN 62 — تغيير شكل استجابة API يكسر الكلاينت القديم
+**المشكلة:** تغيير endpoint من إرجاع array لإرجاع `{events, chain_valid}` يكسر أي كلاينت يفترض array
+**مثال حقيقي:** هذه الجلسة — `/log/list` تغيّر شكله؛ الكلاينت اتحدّث مع backward-compat
+**القاعدة:** عند تغيير شكل استجابة، حدّث الكلاينت **وخليه يقبل الشكلين** (الجديد + القديم) لتفادي الكسر أثناء النشر التدريجي
+```javascript
+var events = Array.isArray(resp) ? resp : (resp.events||[]);
+```
+- [ ] هل تغيير شكل API صاحبه تحديث كلاينت متوافق مع الشكلين؟ (Pattern 62)
+
+---
+
+## PATTERN 63 — Log/State File ينمو بلا حد (No Rotation)
+**المشكلة:** ملف log/state بيتزاد append بلا حد → ملف عملاق → بطء قراءة + استهلاك قرص
+**القاعدة:** دوّر الملف عند حجم أقصى (مثلاً 10MB → .1)
+```python
+if os.path.getsize(LOG_FILE) > MAX: os.replace(LOG_FILE, LOG_FILE+'.1')
+```
+- [ ] هل ملفات الـ log/state عندها rotation عند حد أقصى؟ (Pattern 63)
+
+---
+
+## PATTERN 64 — استخراج Shared State Class بدون التحقق من Atomicity فعلياً
+**المشكلة:** عند تقسيم ملف ضخم (refactor) ونقل كلاس فيه حالة مشتركة (locks + atomic claim/release) لموديول منفصل، `py_compile` ينجح والـ HTTP endpoints ترجع نفس الشكل — لكن ده **لا يثبت** إن سلوك التزامن (thread-safety) اتحافظ عليه. خطأ صامت في الـ lock ممكن يعدّي كل الاختبارات السطحية ويظهر فقط تحت ضغط threads حقيقي (race condition في production).
+**القاعدة:** بعد نقل أي كلاس حالة مشتركة، اكتب unit test يضغط الـ atomic ops بـ threads متزامنة فعلاً:
+```python
+# مثال: claim لازم يكسبه thread واحد بس من 50
+wins=[]
+def race(i):
+    if mgr.try_claim(f"ws{i}", f"ip{i}"): wins.append(i)
+ts=[threading.Thread(target=race,args=(i,)) for i in range(50)]
+[t.start() for t in ts]; [t.join() for t in ts]
+assert len(wins)==1   # لو طلع >1 → الـ lock اتكسر في النقل
+```
++ اختبر double-start مرفوض، و stop_all/clear_all يرجّعوا الحالة الابتدائية.
+- [ ] هل استخراج كلاس الحالة المشتركة صاحبه unit test يضغط atomicity بـ threads (مش بس compile/HTTP)؟ (Pattern 64)
+
+---
+
+## PATTERN 65 — استخراج موديول يشارك dict/list قابل للتغيير: خطر الـ Aliasing
+**المشكلة:** عند نقل دوال أمنية/حالة لموديول منفصل، الـ state المشترك (مثل `security` dict) بيتكتب من أماكن في السيرفر (watcher بيعمل `.clear()/.update()`، approve بيعمل `.append()`) **ويُقرأ** من الموديول. لو الموديول استورد **نسخة** (أو أعاد بناء dict خاص به)، الكتابة من السيرفر مش هتظهر في الموديول والعكس → ثغرة صامتة: IP يتشال من blacklist بس الموديول لسه شايفه، أو whitelist جديدة متظهرش. `py_compile` + HTTP بيعدّوا بنجاح لأن المشكلة في **هوية الـ object** مش في الـ syntax.
+**القاعدة:** شارِك **نفس الـ reference** عبر injection (مش نسخة)، واكتب اختبار aliasing صريح:
+```python
+mod.configure(security, sec_lock)      # نفس الـ object
+security['whitelist'].append('X')       # كتابة من جهة السيرفر
+assert mod._is_allowed('X')            # لازم تظهر فوراً في الموديول
+security['blacklist'].append('Y')
+assert not mod._is_allowed('Y')        # blacklist تغلب whitelist
+```
++ أضف parity test: استخرج دوال الـ backup الأصلية بـ regex، نفّذها في sandbox، وقارن نتيجتها سطر بسطر مع الموديول الجديد بنفس المدخلات (allow/blacklist، nonce reuse، rate-limit sequence، HMAC good/bad).
+- [ ] هل الموديول المستخرج يشارك نفس reference للـ state القابل للتغيير (مش نسخة) + اختبار aliasing + parity مقابل الأصل؟ (Pattern 65)
+
+---
+
+## PATTERN 66 — نقل "طبقة" كاملة وهي مش متجانسة الترابط
+**المشكلة:** الإغراء عند الـ refactor إنك تنقل "كل طبقة الأمان" أو "كل الحالة" دفعة واحدة. لكن بعد فحص الكود الفعلي، الطبقة الواحدة بتكون **خليط**: دوال نقية معزولة (nonce, rate-limit, hmac) + دوال "غراء" cross-cutting بتنسّق بين أنظمة كتير (`_trigger_lockdown` بيلمس stream + manager + loop + state + log). نقل الغراء لموديول بيتطلب حقن 8-10 dependencies = سطح خطأ ضخم + كود هش بيوهم بالعزل وهو مش معزول.
+**القاعدة:** قسّم الطبقة حسب **درجة الترابط الفعلية** مش حسب الاسم. انقل النواة النقية فقط؛ سيب الغراء cross-cutting في مكانه (التوثيق يشرح ليه). عزل ناقص صادق > عزل كامل وهمي.
+- [ ] هل قبل نقل "طبقة" رسمت خريطة اعتماديات كل دالة وفصلت النقي عن الغراء؟ (Pattern 66)
+
+---
+
+## PATTERN 67 — استخراج Scalar Config (int/bool) القابل للتغيير في runtime: خطر الـ Snapshot
+**المشكلة:** عند استخراج إعدادات لموديول، الإغراء إنك تنقل **كل** الإعدادات بما فيها الأعلام المتغيّرة (FLAG_SCALE, FLAG_GREY...). لكن لو الإعداد **scalar** (int/bool/str) وبيتكتب live في runtime (من handler زي `/flags/update`)، نقله لموديول بـ alias في السيرفر (`FLAG_SCALE = pd_config.FLAG_SCALE`) **يكسر التحديث الحي بصمت**: الـ alias بياخد **snapshot للقيمة وقت الإقلاع**، فلما الـ handler يحدّث `pd_config.FLAG_SCALE` الـ alias القديم في السيرفر مايتغيّرش (لأن int/bool ممرّرة بالقيمة مش بالـ reference — عكس الـ dict/list). النتيجة: الميزة "تشتغل" بدون error بس بقيمة قديمة forever. الفرق عن نمط 65: هناك dict/list ممكن مشاركتهم بـ reference؛ هنا scalar **مستحيل**.
+**القاعدة:**
+- انقل **الثوابت الـ immutable فقط** (تُكتب مرة وقت import وتُقرأ بس) — دي آمنة لأن مفيش mutation.
+- الإعدادات الـ mutable الـ scalar: **سِيبها في مكانها** لحد ما تعمل redesign لـ object واحد (`cfg.scale` بدل `FLAG_SCALE`) — وقتها الـ mutation عبر `cfg` reference وتظهر في كل مكان.
+- لو لازم تنقلها قبل الـ redesign: **حوّل كل القراءات** لـ `pd_config.FLAG_X` (مش alias) — مايصحش تسيب alias scalar في السيرفر أبداً.
+```python
+# غلط (snapshot — يكسر live-update بصمت):
+FLAG_SCALE = pd_config.FLAG_SCALE      # أخدت القيمة دلوقتي وبس
+# صح (إما immutable في موديول، أو قراءة مباشرة دايماً):
+if pd_config.FLAG_SCALE != 1.0: ...     # يقرأ القيمة الحية كل مرة
+```
+- [ ] هل الإعداد المنقول immutable؟ لو mutable scalar: هل تجنّبت الـ alias واستخدمت `pd_config.X` مباشرة (أو أجّلته لـ redesign)؟ (Pattern 67)
+
+---
+
+## PATTERN 68 — تقسيم الـ Routes عالي الترابط: حقن كل الـ globals
+**المشكلة:** 51 route بتعتمد على عشرات الـ globals (FLAG_*, security, _stream, manager, _log_event, إلخ). محاولة نقلها لموديول منفصل بـ dependency injection = حقن 30+ dependency لكل route. ده redesign مش استخراج.
+**القاعدة:** لو الـ handlers بتلمس **كل حاجة**، سيبها في السيرفر الرئيسي مع الموديولات الفرعية. التقسيم هنا مش هيقلل التعقيد، هيخفيه بس.
+- [ ] هل نقل الـ routes يتطلب injection ضخم؟ لو أيوه، سيبها في السيرفر ووثّق السبب. (Pattern 68)
+
+---
+
+## PATTERN 69 — Main Loop + Lifespan: الـ globals اللي بيتكتبوا في الـ workers
+**المشكلة:** الـ main loop (`__main__`) والـ lifespan workers بيستخدموا `global` للكتابة (screen_streaming, audio_streaming, FLAG_*, إلخ). الـ workers بتشتغل في threads منفصلة وتحتاج نفس الـ global namespace.
+**القاعدة:** الـ lifespan ده **قلب السيرفر** — نقله لموديول بيتطلب نقل الـ global namespace كله. الأفضل نسيبه في `__main__` ونوثّق الـ dependencies بوضوح.
+- [ ] هل الـ workers بيكتبوا في globals السيرفر؟ لو أيوه، نقلهم لموديول هيحتاج redesign كامل. (Pattern 69)

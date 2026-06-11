@@ -52,6 +52,9 @@ If you regenerate cert.pem / key.pem, the client will show a Man-in-the-Middle (
 
 > This warning would also appear if someone genuinely replaced your certificate with a malicious one. If you did not regenerate your certificate but see this warning, treat it as a real security alert and investigate before proceeding.
 
+### 5. Custom SSL Certificate
+لو عايز تستخدم شهادة خاصة بك → ضعها بجانب `SERVER.py` (باسم `cert.pem` و `key.pem`). السيرفر بيستخدمهم تلقائي لو لقاهم.
+
 
 ---
 

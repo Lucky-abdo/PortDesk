@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -e
+
+echo "════════════════════════════════════════════════"
+echo "  PortDesk Docker Container Starting..."
+echo "════════════════════════════════════════════════"
+
+# دعم المرونة: لو SERVER.py مش موجود، استخدم الاسم القديم
+if [ -f /app/SERVER.py ]; then
+    SERVER_FILE="/app/SERVER.py"
+elif [ -f /app/portdesk-server.py ]; then
+    SERVER_FILE="/app/portdesk-server.py"
+else
+    echo "❌ لم يتم العثور على SERVER.py أو portdesk-server.py"
+    exit 1
+fi
+
+# باقي الكود زي ما هو (Xvfb + uinput + ...)
+if [ -z "$DISPLAY" ]; then
+    echo "  ℹ  Starting Xvfb on :99..."
+    Xvfb :99 -screen 0 1920x1080x24 -nolisten tcp &
+    export DISPLAY=:99
+    sleep 1
+fi
+
+# ... (باقي الكود)
+
+echo "════════════════════════════════════════════════"
+echo "  Starting PortDesk Server..."
+echo "════════════════════════════════════════════════"
+
+exec python "$SERVER_FILE" "$@" $EXTRA_ARGS
