@@ -1,5 +1,5 @@
 # ── Core Web Framework ──────────────────────────────────────
-python-multipart==0.0.26
+python-multipart==0.0.27
 
 # ── Screen Capture & Streaming ──────────────────────────────
 opencv-python-headless==4.10.0.84
