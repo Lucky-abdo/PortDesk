@@ -1,4 +1,6 @@
 # ═══════════════════════════════════════════════════════════════════
+#  PortDesk — Docker Image (Multi-Stage Build)
+# ═══════════════════════════════════════════════════════════════════
 #  Build:    docker build -t portdesk-server .
 #  Run:      docker run -d --name portdesk -p 5000:5000 portdesk-server
 #  Full:     docker run -d --name portdesk --privileged \
@@ -15,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc g++ libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements-docker.txt ./requirements.txt
+COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────
@@ -36,9 +38,11 @@ COPY --from=builder /install /usr/local
 
 WORKDIR /app
 
+# Flexible: look for SERVER.py or portdesk-server.py
 COPY SERVER.py* portdesk-server.py* ./
 COPY CLIENT.html* portdesk_client.html* ./
-COPY entrypoint.sh* ./
+COPY generate_cert.py ./
+COPY entrypoint.sh ./
 
 RUN chmod +x entrypoint.sh || true
 
