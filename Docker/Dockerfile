@@ -36,7 +36,6 @@ COPY --from=builder /install /usr/local
 
 WORKDIR /app
 
-# دعم المرونة: يدور على SERVER.py أو portdesk-server.py
 COPY SERVER.py* portdesk-server.py* ./
 COPY CLIENT.html* portdesk_client.html* ./
 COPY entrypoint.sh* ./
