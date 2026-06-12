@@ -1,17 +1,15 @@
-# ── Core Web Framework ──────────────────────────────────────
-python-multipart==0.0.26
+# ═══════════════════════════════════════════════════════════════
+# PortDesk — Python Requirements
+# ═══════════════════════════════════════════════════════════════
 
 # ── Screen Capture & Streaming ──────────────────────────────
-opencv-python-headless==4.10.0.84
-numpy==1.26.4
-mss==9.0.2
+opencv-python-headless>=4.10.0
+numpy>=1.26.0
+mss>=9.0.0
 
-# ── System Control ──────────────────────────────────────────
-pyautogui==0.9.54
-
-# ── WebRTC ──────────────────────────────────────────────────
+# ── WebRTC (Optional — for peer-to-peer streaming) ─────────
 aiortc>=1.9.0
-av==12.3.0
+av>=12.0.0
 aioice>=0.9.0
 
 # ── Security & HTTPS Certificates (Required) ───────────────
@@ -29,9 +27,11 @@ cryptography>=42.0.0
 #   - python-xlib      → Fast X11 input control via XTest (optional)
 #   - evdev            → Kernel-level input for Wayland (optional)
 #   - uvloop           → 2-4x faster event loop (optional)
+#   - PyTurboJPEG      → Hardware-accelerated JPEG encoding (optional)
 #
 # macOS:
 #   - pyobjc-framework-Quartz → Native input/screen capture (optional)
 #   - uvloop                  → 2x faster event loop (optional)
+#   - PyTurboJPEG             → Hardware-accelerated JPEG encoding (optional)
 #
 # To skip auto-install on first run: export PORTDESK_NO_AUTOINSTALL=1

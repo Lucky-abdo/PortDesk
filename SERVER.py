@@ -2668,16 +2668,19 @@ def _auto_install_deps():
     _sysname = _pf.system()
     if _sysname == 'Windows':
         wanted += [('mss', 'mss', 'screen capture'),
-                   ('dxcam', 'dxcam', 'fast GPU screen capture')]
+                   ('dxcam', 'dxcam', 'fast GPU screen capture'),
+                   ('turbojpeg', 'PyTurboJPEG', 'hardware-accelerated JPEG encoding')]
     elif _sysname == 'Linux':
         wanted += [('mss', 'mss', 'screen capture'),
                    ('Xlib', 'python-xlib', 'fast X11 input (XTest)'),
                    ('evdev', 'evdev', 'kernel input (Wayland/headless)'),
-                   ('uvloop', 'uvloop', '2x faster event loop')]
+                   ('uvloop', 'uvloop', '2x faster event loop'),
+                   ('turbojpeg', 'PyTurboJPEG', 'hardware-accelerated JPEG encoding')]
     elif _sysname == 'Darwin':
         wanted += [('mss', 'mss', 'screen capture'),
                    ('Quartz', 'pyobjc-framework-Quartz', 'native input/capture'),
-                   ('uvloop', 'uvloop', '2x faster event loop')]
+                   ('uvloop', 'uvloop', '2x faster event loop'),
+                   ('turbojpeg', 'PyTurboJPEG', 'hardware-accelerated JPEG encoding')]
     missing = [(imp, pip, why) for (imp, pip, why) in wanted if _ilu.find_spec(imp) is None]
     if not missing:
         return
@@ -2998,3 +3001,4 @@ if __name__ == '__main__':
             # Single source of truth — _stream.* is authoritative
             # Single source of truth — _stream.* is authoritative
             _update_stream_status()
+

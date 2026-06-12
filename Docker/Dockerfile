@@ -21,7 +21,11 @@ ENV PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xdotool xclip xsel libportaudio2 ffmpeg libgl1 libglib2.0-0 \
     libdbus-1-3 xvfb python3-uinput \
+    libturbojpeg0-dev \
     && rm -rf /var/lib/apt/lists/*
+# NOTE: libturbojpeg0-dev is needed for PyTurboJPEG (hardware JPEG encoding).
+# If you don't need it, remove libturbojpeg0-dev above and comment out
+# PyTurboJPEG in requirements-docker.txt — the server falls back to cv2.
 COPY --from=builder /install /usr/local
 WORKDIR /app
 
