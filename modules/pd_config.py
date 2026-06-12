@@ -32,11 +32,25 @@ def _find_project_root():
     Find the project root intelligently.
     Priority:
       1. Directory of the running main script (SERVER.py)
-      2. Directory of this pd_config.py
-      3. Current working directory
+         — walk up from it until we find a typical PortDesk root marker.
+      2. Parent of THIS file's directory
+         — pd_config.py usually lives inside a modules/ sub-dir, so the
+           project root is one level up from __file__.
+      3. Current working directory (last resort)
     This allows users to reorganize files freely.
     """
     import sys
+
+    # ── Helper: does a directory look like the project root? ──────────────
+    _ROOT_MARKERS = (
+        'SERVER.py', 'portdesk-server.py',
+        'CLIENT.html', 'portdesk_client.html',
+        'docker-compose.yml', 'Dockerfile',
+    )
+    def _is_project_root(d):
+        return any(os.path.isfile(os.path.join(d, m)) for m in _ROOT_MARKERS)
+
+    # 1) Walk up from the main script directory
     main_file = None
     if hasattr(sys, 'argv') and sys.argv:
         main_file = sys.argv[0]
@@ -45,20 +59,40 @@ def _find_project_root():
 
     if main_file:
         root = os.path.dirname(os.path.abspath(main_file))
-        # Walk up until we find typical PortDesk files
-        while root and not any(
-            os.path.exists(os.path.join(root, f)) for f in
-            ['SERVER.py', 'portdesk-server.py', 'CLIENT.html', 'portdesk_client.html']
-        ):
+        # If the main script itself is in the root, return immediately
+        if _is_project_root(root):
+            return root
+        # Walk up looking for root markers
+        for _ in range(5):
             parent = os.path.dirname(root)
             if parent == root:
                 break
             root = parent
-        if root:
-            return root
+            if _is_project_root(root):
+                return root
 
-    # Fallback
-    return os.path.dirname(os.path.abspath(__file__))
+    # 2) Walk up from THIS file's directory.
+    #    pd_config.py usually lives in modules/ (or src/ or lib/), so the
+    #    project root is typically the PARENT of this file's directory.
+    this_dir = os.path.dirname(os.path.abspath(__file__))
+    root = this_dir
+    for _ in range(3):
+        if _is_project_root(root):
+            return root
+        parent = os.path.dirname(root)
+        if parent == root:
+            break
+        root = parent
+
+    # 3) If this file is in a sub-directory (modules/src/lib), the parent
+    #    is very likely the project root even without markers.
+    if os.path.basename(this_dir) in ('modules', 'src', 'lib'):
+        parent = os.path.dirname(this_dir)
+        if os.path.isdir(parent):
+            return parent
+
+    # 4) Last resort: this file's own directory
+    return this_dir
 
 
 BASE_DIR = _find_project_root()

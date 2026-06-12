@@ -24,8 +24,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /install /usr/local
 WORKDIR /app
+
+# ── Copy server entry point (supports both naming conventions) ──
 COPY SERVER.py* portdesk-server.py* ./
+
+# ── Copy modules directory (required — server imports from here) ──
+# The bootstrap in SERVER.py auto-discovers this directory and adds it
+# to sys.path. If you rename "modules/" to something else, update
+# MODULE_DIR_NAMES in SERVER.py and the COPY line below.
+COPY modules/ ./modules/
+
+# ── Copy client HTML (supports both naming conventions) ──
 COPY CLIENT.html* portdesk_client.html* ./
+
 COPY Docker/entrypoint.sh ./
 RUN chmod +x entrypoint.sh || true
 VOLUME ["/app/data"]

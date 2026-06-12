@@ -26,6 +26,8 @@ services:
       - ../data:/app/data
       - ../cert.pem:/app/cert.pem:ro
       - ../key.pem:/app/key.pem:ro
+      # ── Live-reload modules during development (uncomment if needed) ──
+      # - ../modules:/app/modules:ro
 
     environment:
       - DISPLAY=:99

@@ -10,6 +10,7 @@ coupled without changing behavior.
 """
 from __future__ import annotations
 import os
+import sys
 import re
 import time
 import platform
@@ -216,8 +217,8 @@ class _GrimCaptureBackend(_CaptureBase):
         try:
             r = subprocess.run(['grim', '-t', 'ppm', '-'], capture_output=True, timeout=2)
             if r.returncode or not r.stdout: return None, {}
-            lines = r.stdout.split(b'\n', 3)
-            if lines[0] != b'P6': return None, {}
+            \n', 3)
+            if lines[0] != blines = r.stdout.split(b''P6': return None, {}
             w, h = map(int, lines[1].split())
             arr = np.frombuffer(lines[3][:w*h*3], dtype=np.uint8).reshape((h, w, 3))[:, :, ::-1]
             return arr, {'left': 0, 'top': 0, 'width': w, 'height': h}

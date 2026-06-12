@@ -1,42 +1,111 @@
-# ── pd_routes — all 51 HTTP/WS routes (refactor) ────────────────────────────
-# Imported from portdesk_server.py at the END of that file so all globals
-# (cfg, _stream, security, manager, etc.) are already defined. No circular
-# dependency because the import happens after full initialization.
-from portdesk_server import (
-    app, cfg, _stream, manager, _session, _loop_ref, _loop,
-    security, _sec_lock, _pyautogui_lock,
-    FLAG_WATCH_ONLY, FLAG_NO_EXPLORER, FLAG_NO_MOUSE, FLAG_NO_KEYBOARD,
-    FLAG_NO_WEBRTC, FLAG_NO_H264, FLAG_GREY, FLAG_SCALE, FLAG_UPLOAD_LIMIT,
-    FLAG_BACKEND, FLAG_VERBOSE, FLAG_NO_UPLOAD, FLAG_NO_DOWNLOAD,
-    _EXECUTOR, _INPUT_EXECUTOR, _webrtc_pcs, _webrtc_dc_clients, _webrtc_dc_lock,
-    _TokenBucket, _ws_buckets, STUN_SERVERS, _DataChannelClient,
-    _hmac_verify, _is_allowed, _is_blacklisted, _is_private_host, _is_rate_limited,
-    _require_active_pin, _log_event, _vprint,
-    _approve_ip, _prompt_add_ip, _record_unknown_attempt,
-    _check_and_consume_nonce, _ws_pin_verified, _ws_pin_lock,
-    _active_client_ws, _active_client_ip, _active_client_lock,
-    screen_streaming, audio_streaming, _mic_active,
-    _current_stream_mode, _current_transport,
-    screen_thread, _mic_worker_thread, _mic_queue,
-    _audio_thread, _audio_worker, _mic_worker,
-    screen_worker, _FfmpegH264Streamer,
-    _ffmpeg_encoder, _ffmpeg_encoder_ok, _detect_ffmpeg_encoder,
-    _update_stream_status,
-    _clipboard_paste, _clipboard_copy, type_text, _is_simple_typable,
-    _init_virtual_keyboard, _send_virtual_key, _send_virtual_text,
-    _send_xdotool_key, _send_xdotool_text, _virtual_kb_device,
-    map_key, KEY_MAP,
-    _decode_binary_input, _dispatch,
+"""
+── pd_routes — all 51 HTTP/WS routes (refactor) ────────────────────────────
+Imported from SERVER.py at the END of that file so all globals
+(cfg, _stream, security, manager, etc.) are already defined. No circular
+dependency because the import happens after full initialization.
 
-    macros, _macro_lock, scheduled_tasks, _sched_lock,
-    _load_macros, _save_macros, _load_scheduled, _save_scheduled,
-    _pin_fails, _pin_lockout, _pin_lockout_count,
-    PIN_MAX_TRIES, PIN_LOCKOUT_STEPS,
-    _reject_counts,
-    JSONResponse, WebSocket, WebSocketDisconnect, Request,
-    WEBRTC_AVAILABLE, DXCAM_AVAILABLE, MSS_AVAILABLE, CV2_AVAILABLE,
-    SUBPROCESS_AVAILABLE,
-)
+FLEXIBLE IMPORT: The main server module might be called SERVER.py,
+portdesk_server.py, or anything else.  The bootstrap code in the main file
+registers itself in sys.modules under the canonical name 'portdesk_server',
+so this import works regardless of the actual filename.  If you rename the
+main file, just update SERVER_MODULE_NAME in the bootstrap section of the
+main file — no changes needed here.
+
+"""
+
+import sys as _sys
+_SERVER_MODULE_NAME = 'portdesk_server'   # must match SERVER_MODULE_NAME in main file
+
+# Try the canonical name first; fall back to __main__ if the bootstrap
+# hasn't run yet (shouldn't happen, but makes the module more robust).
+_server_mod = _sys.modules.get(_SERVER_MODULE_NAME) or _sys.modules.get('__main__')
+if _server_mod is None:
+    raise ImportError(
+        f"pd_routes: cannot find the server module (tried '{_SERVER_MODULE_NAME}' "
+        f"and '__main__').  Make sure this file is imported from the main server script."
+    )
+
+# Import all required names from the server module.
+# We use getattr on the live module object so that even if the module was
+# registered early (before all globals were defined), we still get the
+# latest bindings at the time this import runs.
+_NEEDED_NAMES = [
+    'app', 'cfg', '_stream', 'manager', '_session', '_loop_ref', '_loop',
+    'security', '_sec_lock', '_pyautogui_lock',
+    'FLAG_WATCH_ONLY', 'FLAG_NO_EXPLORER', 'FLAG_NO_MOUSE', 'FLAG_NO_KEYBOARD',
+    'FLAG_NO_WEBRTC', 'FLAG_NO_H264', 'FLAG_GREY', 'FLAG_SCALE', 'FLAG_UPLOAD_LIMIT',
+    'FLAG_BACKEND', 'FLAG_VERBOSE', 'FLAG_NO_UPLOAD', 'FLAG_NO_DOWNLOAD',
+    '_EXECUTOR', '_INPUT_EXECUTOR', '_webrtc_pcs', '_webrtc_dc_clients', '_webrtc_dc_lock',
+    '_TokenBucket', '_ws_buckets', 'STUN_SERVERS', '_DataChannelClient',
+    '_hmac_verify', '_is_allowed', '_is_blacklisted', '_is_private_host', '_is_rate_limited',
+    '_require_active_pin', '_log_event', '_vprint',
+    '_approve_ip', '_prompt_add_ip', '_record_unknown_attempt',
+    '_check_and_consume_nonce', '_ws_pin_verified', '_ws_pin_lock',
+    '_active_client_ws', '_active_client_ip', '_active_client_lock',
+    'screen_streaming', 'audio_streaming', '_mic_active',
+    '_current_stream_mode', '_current_transport',
+    'screen_thread', '_mic_worker_thread', '_mic_queue',
+    '_audio_thread', '_audio_worker', '_mic_worker',
+    'screen_worker', '_FfmpegH264Streamer',
+    '_ffmpeg_encoder', '_ffmpeg_encoder_ok', '_detect_ffmpeg_encoder',
+    '_update_stream_status',
+    '_clipboard_paste', '_clipboard_copy', 'type_text', '_is_simple_typable',
+    '_init_virtual_keyboard', '_send_virtual_key', '_send_virtual_text',
+    '_send_xdotool_key', '_send_xdotool_text', '_virtual_kb_device',
+    'map_key', 'KEY_MAP',
+    '_decode_binary_input', '_dispatch',
+    'macros', '_macro_lock', 'scheduled_tasks', '_sched_lock',
+    '_load_macros', '_save_macros', '_load_scheduled', '_save_scheduled',
+    '_pin_fails', '_pin_lockout', '_pin_lockout_count',
+    'PIN_MAX_TRIES', 'PIN_LOCKOUT_STEPS',
+    '_reject_counts',
+    'JSONResponse', 'WebSocket', 'WebSocketDisconnect', 'Request',
+    'WEBRTC_AVAILABLE', 'DXCAM_AVAILABLE', 'MSS_AVAILABLE', 'CV2_AVAILABLE',
+    'SUBPROCESS_AVAILABLE',
+    # ── Additional names used in route handlers ──────────────────────────────
+    '_lockdown_lock', '_lockdown',                          # security lockdown
+    '_screen_last_error',                                    # stream error proxy
+    '_save_security',                                        # persist security config
+    '_log_write_queue', '_log_lock', 'LOG_FILE',            # logging infrastructure
+    '_pin_verify', '_pin_hash',                              # PIN hashing (from pd_crypto)
+    '_hmac_mod',                                             # hmac module alias
+    'DATA_DIR', 'BASE_DIR',                                 # paths (from pd_config)
+    'get_system_stats',                                      # CPU/RAM stats (from pd_stats)
+    'FileResponse', 'StreamingResponse',                     # HTTP response types
+    'pyautogui',                                             # input control (portdesk_input alias)
+    'set_max_body_size',                                     # upload limit helper
+    'ScreenCaptureTrack',                                    # WebRTC video track
+    '_string',                                               # stdlib string alias
+    '_mss',                                                  # mss module alias (conditional)
+]
+
+# Names that are CONDITIONAL — they exist only when optional deps are installed.
+# We import them if present, skip silently if absent (the route handlers already
+# guard with WEBRTC_AVAILABLE / MSS_AVAILABLE / etc.).
+_CONDITIONAL_NAMES = {
+    '_mss',                  # only when mss is installed
+    'ScreenCaptureTrack',    # only when aiortc is installed
+}
+
+# Check for truly missing names (excluding conditional ones)
+_missing = [n for n in _NEEDED_NAMES if n not in _CONDITIONAL_NAMES and not hasattr(_server_mod, n)]
+if _missing:
+    raise ImportError(
+        f"pd_routes: the server module '{_SERVER_MODULE_NAME}' is missing these "
+        f"names: {', '.join(_missing[:10])}{'...' if len(_missing) > 10 else ''}.  "
+        f"Make sure 'import pd_routes' happens at the END of the server file, "
+        f"after all globals are defined."
+    )
+
+# Inject all available names into this module's namespace
+globals().update({
+    name: getattr(_server_mod, name)
+    for name in _NEEDED_NAMES
+    if hasattr(_server_mod, name)
+})
+
+# Clean up temporary names
+del _sys, _server_mod, _NEEDED_NAMES, _CONDITIONAL_NAMES, _missing
 
 
 # ── WebRTC imports (conditional — same as server) ──

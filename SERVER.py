@@ -1,4 +1,91 @@
 # ── Custom HTTP/WebSocket server — replaces fastapi + starlette + uvicorn ────
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FLEXIBLE MODULE BOOTSTRAP — runs BEFORE any project imports.
+#
+# Problem:  SERVER.py sits in the project root while the pd_* / portdesk_*
+#           modules live in a sub-directory (e.g. "modules/").  Python can't
+#           find them unless the sub-directory is on sys.path.
+# Solution: Auto-discover the modules directory and inject it into sys.path.
+#           Also register *this* file as the canonical module name so that
+#           `from portdesk_server import ...` works inside pd_routes.py
+#           regardless of what the main file is actually called.
+#
+# Configurability:
+#   • MODULE_DIR_NAMES  — directory names to search (edit if you rename the
+#                         folder from "modules" to something else).
+#   • SERVER_MODULE_NAME — the name pd_routes.py uses to import back from
+#                         this file.  Change it if you rename the import alias.
+#   • MODULE_MARKERS    — filenames used to verify a candidate directory is
+#                         really the modules folder (so we don't add a random
+#                         "modules" dir by accident).  Add/remove as needed.
+# ══════════════════════════════════════════════════════════════════════════════
+import sys as _sys, os as _os
+
+# ── User-tunable constants (change these if you reorganize) ─────────────────
+MODULE_DIR_NAMES   = ('modules', 'src', 'lib')          # directories to search
+SERVER_MODULE_NAME = 'portdesk_server'                   # import name for pd_routes
+MODULE_MARKERS     = (                                   # files that prove "this is it"
+    'portdesk_http.py', 'pd_config.py', 'pd_security.py',
+    'pd_state.py', 'pd_crypto.py', 'pd_routes.py',
+)
+
+def _bootstrap_module_path():
+    """Find and add the modules directory to sys.path.  Returns the path or None."""
+    # 1) Directory of the running main script
+    main_file = None
+    if hasattr(_sys, 'argv') and _sys.argv:
+        main_file = _sys.argv[0]
+    elif '__main__' in _sys.modules:
+        main_file = getattr(_sys.modules['__main__'], '__file__', None)
+    start_dir = _os.path.dirname(_os.path.abspath(main_file)) if main_file else _os.getcwd()
+
+    # 2) Walk upward from start_dir looking for a candidate directory
+    search_root = start_dir
+    for _ in range(5):                                  # max 5 levels up
+        for dirname in MODULE_DIR_NAMES:
+            candidate = _os.path.join(search_root, dirname)
+            if _os.path.isdir(candidate):
+                # Verify it contains at least one marker file
+                marker_hits = sum(
+                    1 for m in MODULE_MARKERS
+                    if _os.path.isfile(_os.path.join(candidate, m))
+                )
+                if marker_hits >= 2:                    # ≥2 markers → confident match
+                    abs_candidate = _os.path.abspath(candidate)
+                    if abs_candidate not in _sys.path:
+                        _sys.path.insert(0, abs_candidate)
+                    return abs_candidate
+        parent = _os.path.dirname(search_root)
+        if parent == search_root:
+            break
+        search_root = parent
+
+    # 3) Fallback: check if modules are already importable (e.g. same dir)
+    return None
+
+_modules_dir = _bootstrap_module_path()
+
+# ── Register *this* main module under the canonical name that pd_routes expects.
+#    pd_routes does  `from portdesk_server import (app, cfg, ...)`  — this makes
+#    it work whether the file is called SERVER.py, portdesk_server.py, or anything
+#    else.  The registration happens *before* pd_routes is imported, so all globals
+#    defined up to that point are visible.
+#    NOTE: we only set it here as a placeholder; the final update happens right
+#    before `import pd_routes` (at the end of this file) so all globals are set.
+if '__main__' in _sys.modules and SERVER_MODULE_NAME not in _sys.modules:
+    _sys.modules[SERVER_MODULE_NAME] = _sys.modules['__main__']
+
+# ── Clean up bootstrap namespace (don't pollute the server module) ──────────
+del _bootstrap_module_path, _modules_dir
+# Keep MODULE_DIR_NAMES, SERVER_MODULE_NAME, MODULE_MARKERS accessible for
+# other modules that might want to call _bootstrap_module_path() themselves.
+# If you prefer a truly clean namespace, delete them too and the rest of the
+# code will still work because sys.path is already patched.
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Original imports — now they work because sys.path includes the modules dir
+# ══════════════════════════════════════════════════════════════════════════════
 from portdesk_http import (
     Server, Request, Response, JSONResponse, FileResponse, StreamingResponse,
     WebSocket, WebSocketDisconnect, _UploadFile, make_middleware, set_max_body_size
@@ -2610,6 +2697,10 @@ def _subprocess_install(pip_name):
 
 
 # ── Register all 51 routes (extracted to pd_routes module) ──
+# Refresh the module registration so pd_routes can see ALL globals defined
+# in this file (not just the ones that existed at bootstrap time).
+if SERVER_MODULE_NAME in sys.modules:
+    sys.modules[SERVER_MODULE_NAME] = sys.modules.get('__main__', sys.modules[SERVER_MODULE_NAME])
 import pd_routes
 
 
@@ -2907,4 +2998,3 @@ if __name__ == '__main__':
             # Single source of truth — _stream.* is authoritative
             # Single source of truth — _stream.* is authoritative
             _update_stream_status()
-

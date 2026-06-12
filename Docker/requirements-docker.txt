@@ -2,19 +2,13 @@
 # PortDesk — Docker Requirements (Base + Docker Runtime)
 # ═══════════════════════════════════════════════════════════════
 
-# ── Core Web Framework ──────────────────────────────────────
-fastapi==0.115.6
-uvicorn[standard]==0.34.2
+# ── Core ────────────────────────────────────────────────────
 python-multipart==0.0.26
 
 # ── Screen Capture & Streaming ──────────────────────────────
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
 mss==9.0.2
-
-# ── System Control ──────────────────────────────────────────
-pyautogui==0.9.54
-pyperclip==1.9.0
 
 # ── WebRTC ──────────────────────────────────────────────────
 aiortc==1.9.0
