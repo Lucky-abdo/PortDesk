@@ -10,10 +10,28 @@ mss==9.0.2
 pyautogui==0.9.54
 
 # ── WebRTC ──────────────────────────────────────────────────
-aiortc==1.9.0
+aiortc>=1.9.0
 av==12.3.0
-aioice==0.9.0
+aioice>=0.9.0
 
-# ── Optional (Performance & Features) ───────────────────────
-# PyTurboJPEG      → pip install PyTurboJPEG   (Hardware-accelerated JPEG encoding)
-# cryptography     → pip install cryptography  (Auto HTTPS certificate generation)
+# ── Security & HTTPS Certificates (Required) ───────────────
+cryptography>=42.0.0
+
+# ── Platform-Specific Dependencies (Auto-installed by _auto_install_deps) ──
+# These are automatically installed on first run by _auto_install_deps()
+# if missing. They are OPTIONAL but recommended for best performance:
+#
+# Windows:
+#   - PyTurboJPEG      → Hardware-accelerated JPEG encoding (optional)
+#   - dxcam            → Faster DirectX screen capture for Windows 8+ (optional)
+#
+# Linux:
+#   - python-xlib      → Fast X11 input control via XTest (optional)
+#   - evdev            → Kernel-level input for Wayland (optional)
+#   - uvloop           → 2-4x faster event loop (optional)
+#
+# macOS:
+#   - pyobjc-framework-Quartz → Native input/screen capture (optional)
+#   - uvloop                  → 2x faster event loop (optional)
+#
+# To skip auto-install on first run: export PORTDESK_NO_AUTOINSTALL=1
