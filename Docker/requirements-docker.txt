@@ -13,7 +13,7 @@ av==12.3.0
 aioice==0.9.0
 
 # ── SSL Certificate Generation (Required) ────────────────────
-cryptography==42.0.8
+cryptography==48.0.1
 
 # ── Platform-Optional (Auto-installed by SERVER.py on first run) ──
 # These packages are automatically installed by _auto_install_deps()

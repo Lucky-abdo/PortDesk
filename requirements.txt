@@ -13,7 +13,7 @@ av>=12.0.0
 aioice>=0.9.0
 
 # ── Security & HTTPS Certificates (Required) ───────────────
-cryptography>=42.0.0
+cryptography>=48.0.1
 
 # ── Platform-Specific Dependencies (Auto-installed by _auto_install_deps) ──
 # These are automatically installed on first run by _auto_install_deps()
