@@ -14,7 +14,7 @@ av==12.3.0
 aioice==0.9.0
 
 # ── SSL Certificate Generation (Required) ────────────────────
-cryptography==42.0.8
+cryptography==48.0.1
 
 # ── Platform-Optional (Auto-installed by SERVER.py on first run) ──
 # These packages are automatically installed by _auto_install_deps()
@@ -32,8 +32,8 @@ uvloop==0.21.0          # 2-4x faster event loop (libuv-based)
 
 # ── Tray Icon & Image Processing (Required for --tray) ──────
 pystray==0.19.4
-Pillow==10.4.0
-fonttools==4.53.0  # pyftsubset — Phase 2: only used by scripts/generate_font_subsets.py (runtime no longer needs it)
+Pillow==12.2.0
+fonttools==4.60.2  # pyftsubset — Phase 2: only used by scripts/generate_font_subsets.py (runtime no longer needs it)
 
 # ── Auto-installed by SERVER.py (also baked into Docker image) ──
 # PyTurboJPEG: hardware-accelerated JPEG encoding via libturbojpeg.
