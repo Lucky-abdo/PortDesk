@@ -1,0 +1,46 @@
+# ═══════════════════════════════════════════════════════════════
+# PortDesk — Docker Compose (Production-Ready)
+# ═══════════════════════════════════════════════════════════════
+# Usage:
+#   docker-compose up --build        # Build & run
+#   docker-compose up -d             # Run in background
+#   docker-compose logs -f           # Follow logs
+# ═══════════════════════════════════════════════════════════════
+
+version: "3.8"
+
+services:
+  portdesk:
+    build:
+      context: ..
+      dockerfile: Docker/Dockerfile
+    container_name: portdesk
+    cap_add:
+      - NET_ADMIN      # Network namespaces (VPN/tunnel if ever added)
+      - IPC_LOCK       # Shared memory (if used)
+      - DAC_OVERRIDE   # /dev/uinput access (NOT SYS_ADMIN)
+      # SYS_ADMIN: REMOVED — DAC_OVERRIDE sufficient for uinput
+    restart: unless-stopped
+
+    ports:
+      - "5000:5000"
+
+    volumes:
+      - /dev/uinput:/dev/uinput
+      - ../data:/app/data
+      - ../cert.pem:/app/cert.pem:ro
+      - ../key.pem:/app/key.pem:ro
+      # ── Live-reload modules during development (uncomment if needed) ──
+      # - ../modules:/app/modules:ro
+
+    environment:
+      - DISPLAY=:99
+      - PORTDESK_ARGS=--verbose
+      - PYTHONUNBUFFERED=1
+
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
