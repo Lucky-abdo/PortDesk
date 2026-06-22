@@ -14,13 +14,13 @@ av>=12.0.0
 aioice>=0.9.0
 
 # ── Security & HTTPS Certificates (Required) ───────────────
-cryptography>=42.0.0
+cryptography>=48.0.1
 
 # ── Tray Icon & Image Processing (Required for --tray) ──────
 pystray>=0.19.0
-Pillow>=10.0.0
+Pillow>=12.2.0
 pywin32>=306  # Windows dxcam dependency
-fonttools>=4.50.0  # pyftsubset — Phase 2: only used by scripts/generate_font_subsets.py (runtime no longer needs it)
+fonttools>=4.60.2  # pyftsubset — Phase 2: only used by scripts/generate_font_subsets.py (runtime no longer needs it)
 
 # ── Platform-Specific Dependencies (Auto-installed by _auto_install_deps) ──
 # These are automatically installed on first run by _auto_install_deps()
